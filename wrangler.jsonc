@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hotteok-game",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-17",
+  "assets": {
+    "directory": "./dist",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hotteok-game-local",
+      // Local placeholder. Supply the production binding in a separate config.
+      "database_id": "00000000-0000-4000-8000-000000000000"
+    }
+  ]
+}
