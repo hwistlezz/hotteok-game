@@ -1,4 +1,4 @@
-import { normalizeNickname, scoreReceipts } from '../src/game/rules'
+import { normalizeNickname, scoreRound, ROUND_EXPIRY_MS } from '../src/game/rules'
 
 type Env = { DB: D1Database }
 type Round = { started_at: number }
@@ -6,8 +6,6 @@ type Score = { score: number; servedOrders: number }
 
 const MAX_BODY_BYTES = 128 * 1024
 const RANK_LIMIT = 10
-const ROUND_EXPIRY = 24 * 60 * 60 * 1000
-const ROUND_START_GRACE = 3_000
 
 function json(data: unknown, status = 200) {
   return Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
@@ -65,12 +63,12 @@ async function submitScore(request: Request, db: D1Database, id: string) {
   if (!round) return error('round_not_found', 404)
 
   const age = Date.now() - round.started_at
-  const score = scoreReceipts(payload.receipts, Math.min(age + ROUND_START_GRACE, ROUND_EXPIRY))
+  const score = scoreRound(payload.receipts, age)
   if (!score) return error('invalid_result', 400)
 
   const findScore = db.prepare('SELECT score, served_orders AS servedOrders FROM scores WHERE round_id = ?')
     .bind(id)
-  if (age > ROUND_EXPIRY) {
+  if (age > ROUND_EXPIRY_MS) {
     const saved = await findScore.first<Score>()
     return saved ? json(saved) : error('round_expired', 410)
   }

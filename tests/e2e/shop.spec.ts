@@ -109,6 +109,43 @@ test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 �
   await expect(page.getByLabel('매출')).toHaveText('0원')
 })
 
+test('숨긴 탭의 시간을 멈추고 다른 탭의 최고 기록을 보존한다', async ({ page, context }) => {
+  await page.clock.install()
+  await page.route('**/api/rounds', (route) => route.fulfill({ status: 503 }))
+  await page.goto('/')
+  await page.getByLabel('닉네임').fill('호떡손님')
+  await page.getByRole('button', { name: '게임 시작' }).tap()
+  await page.getByRole('button', { name: '건너뛰기' }).tap()
+  await expect(page.getByRole('button', { name: '일시정지' })).toBeEnabled()
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(page.getByRole('dialog', { name: '일시정지' })).toBeVisible()
+  const time = await page.getByLabel('주문 남은 시간').textContent()
+  await page.clock.fastForward(60_000)
+  await expect(page.getByLabel('주문 남은 시간')).toHaveText(time ?? '')
+  const otherTab = await context.newPage()
+  await otherTab.goto('/')
+  await otherTab.evaluate(() => localStorage.setItem('hotteok-best', '6000'))
+  await otherTab.close()
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.getByRole('button', { name: '재개' }).tap()
+  await cookOne(page)
+  for (const duration of [28_050, 28_050, 38_050]) {
+    await page.clock.fastForward(duration)
+  }
+  await expect(page.getByRole('heading', { name: '오늘 장사 끝!' })).toBeVisible()
+  await expect(page.getByText('랭킹 연결을 시작하지 못했어요.', { exact: false })).toBeVisible()
+  await expect(page.getByText('6,000원')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('6,000원')).toBeVisible()
+})
+
 test('잘못된 닉네임과 너무 이른 결과 등록을 거부한다', async ({ request }) => {
   expect((await request.post('/api/rounds', { data: { nickname: '<script>' } })).status()).toBe(400)
   const round = await request.post('/api/rounds', { data: { nickname: '새로운손님' } })

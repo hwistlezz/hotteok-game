@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { newGame, reduceGame } from '../../src/game/game'
-import { normalizeNickname, orderLimit, orderQuantity, scoreReceipts } from '../../src/game/rules'
+import {
+  normalizeNickname, orderLimit, orderQuantity, ROUND_REQUEST_TIMEOUT_MS, scoreReceipts, scoreRound,
+} from '../../src/game/rules'
 
 function readyToServe(start = 0) {
   let game = reduceGame(newGame(false), { type: 'knead', amount: 100, now: start })
@@ -45,6 +47,17 @@ describe('조리 게임', () => {
     const game = newGame(true)
     expect(reduceGame(game, { type: 'tick', now: 180_000 })).toBe(game)
   })
+
+  it('주문 수량은 5개까지 늘어나며 일부만 제출한 주문에는 매출을 적립하지 않는다', () => {
+    expect(Array.from({ length: 11 }, (_, index) => orderQuantity(index)))
+      .toEqual([1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5])
+    const served = reduceGame(readyToServe(), { type: 'serve', now: 6_000 })
+    const second = { ...readyToServe(6_000), orderAt: 6_000, score: served.score, receipts: served.receipts }
+    const partial = reduceGame(second, { type: 'serve', now: 12_000 })
+    expect(partial).toMatchObject({ placed: 1, score: 2_000 })
+    const expired = reduceGame(partial, { type: 'tick', now: 34_000 })
+    expect(expired).toMatchObject({ placed: 0, score: 2_000, hearts: 2 })
+  })
 })
 
 describe('랭킹 검증', () => {
@@ -65,6 +78,12 @@ describe('랭킹 검증', () => {
     expect(scoreReceipts(receipts, 99_999)).toBeNull()
     expect(scoreReceipts([{ outcome: 'served', elapsedMs: 5_799 }, ...receipts.slice(1)], 100_000)).toBeNull()
     expect(scoreReceipts([...receipts, receipts[0]], 200_000)).toBeNull()
+  })
+
+  it('라운드 발급 요청의 최대 지연까지 허용하고 더 이른 제출은 거부한다', () => {
+    const earliest = 100_000 - ROUND_REQUEST_TIMEOUT_MS
+    expect(scoreRound(receipts, earliest)).toEqual({ score: 2_000, servedOrders: 1 })
+    expect(scoreRound(receipts, earliest - 1)).toBeNull()
   })
 
   it('공개 닉네임의 문자와 길이를 정규화한다', () => {

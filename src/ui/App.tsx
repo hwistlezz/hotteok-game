@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { newGame, reduceGame } from '../game/game'
 import { normalizeNickname, orderLimit, orderQuantity } from '../game/rules'
-import { beginRound, fetchLeaderboard, readBest, registerScore, won, writeBest } from './api'
+import { beginRound, bestKey, fetchLeaderboard, readBest, registerScore, saveBest, won } from './api'
 import { Griddle, Kitchen, type InputAction } from './Kitchen'
 
 type Session = { key: number; nickname: string | null; practice: boolean }
@@ -22,9 +22,18 @@ export function App() {
 
   const updateBest = useCallback((score: number) => {
     setBest((current) => Math.max(current, score))
+    void saveBest(score).then((saved) => setBest((current) => Math.max(current, saved)))
   }, [])
 
-  useEffect(() => writeBest(best), [best])
+  useEffect(() => {
+    function syncBest(event: StorageEvent) {
+      if (event.key !== bestKey) return
+      const stored = readBest()
+      setBest((current) => Math.max(current, stored))
+    }
+    window.addEventListener('storage', syncBest)
+    return () => window.removeEventListener('storage', syncBest)
+  }, [])
 
   return (
     <main className="game-shell">

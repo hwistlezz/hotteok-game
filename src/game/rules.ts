@@ -5,6 +5,8 @@ export const PRESS_IDEAL_END = 1_200
 export const COOK_MIN = 2_500
 export const COOK_IDEAL_END = 3_500
 export const COOK_BURN = 5_000
+export const ROUND_REQUEST_TIMEOUT_MS = 6_500
+export const ROUND_EXPIRY_MS = 24 * 60 * 60 * 1000
 
 export type Receipt = {
   outcome: 'served' | 'timeout'
@@ -22,6 +24,11 @@ export function orderLimit(quantity: number) {
 export function normalizeNickname(value: string) {
   const nickname = value.normalize('NFC').trim().replace(/ +/g, ' ')
   return /^[\p{L}\p{N} _-]{2,16}$/u.test(nickname) ? nickname : null
+}
+
+export function scoreRound(receipts: unknown[], serverAgeMs: number) {
+  // Play starts without waiting for the round request to reach the server.
+  return scoreReceipts(receipts, Math.min(serverAgeMs + ROUND_REQUEST_TIMEOUT_MS, ROUND_EXPIRY_MS))
 }
 
 export function scoreReceipts(receipts: unknown[], availableMs: number) {
