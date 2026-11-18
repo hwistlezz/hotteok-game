@@ -17,7 +17,7 @@ describe('조리 게임', () => {
     const game = readyToServe()
     expect(game).toMatchObject({ phase: 'serve', stars: 3 })
     const served = reduceGame(game, { type: 'serve', now: 6_000 })
-    expect(served).toMatchObject({ score: 2_000, phase: 'knead' })
+    expect(served).toMatchObject({ score: 2_000, phase: 'knead', dough: 25 })
     expect(reduceGame(served, { type: 'serve', now: 6_000 })).toBe(served)
   })
 
@@ -46,6 +46,27 @@ describe('조리 게임', () => {
   it('연습은 주문 제한시간을 넘겨도 하트를 잃지 않는다', () => {
     const game = newGame(true)
     expect(reduceGame(game, { type: 'tick', now: 180_000 })).toBe(game)
+  })
+
+  it('굽는 동안 준비한 반죽은 다음 손님에게 한 번만 전달한다', () => {
+    const front = { ...newGame(false), phase: 'front' as const, stars: 1 }
+    let game = reduceGame(front, { type: 'prep', amount: 75, now: 100 })
+    game = reduceGame(game, { type: 'cook', now: 2_600 })
+    game = reduceGame(game, { type: 'prep', amount: 50, now: 2_800 })
+    game = reduceGame(game, { type: 'cook', now: 5_200 })
+    game = reduceGame(game, { type: 'serve', now: 6_000 })
+    expect(game).toMatchObject({ phase: 'press', dough: 100, prepped: 0, score: 2_000, streak: 1, bestStreak: 1 })
+    expect(reduceGame(game, { type: 'prep', amount: 25, now: 6_100 })).toBe(game)
+  })
+
+  it('바삭한 주문은 늦은 눈금에서 별을 주고, 주문 만료 시 준비량과 연속 기록을 초기화한다', () => {
+    const order = reduceGame(readyToServe(), { type: 'serve', now: 6_000 })
+    const front = { ...order, phase: 'front' as const, since: 6_000, prepped: 50 }
+    expect(reduceGame(front, { type: 'cook', now: 8_600 }).stars).toBe(0)
+    expect(reduceGame(front, { type: 'cook', now: 9_500 }).stars).toBe(1)
+    expect(reduceGame(front, { type: 'tick', now: 34_000 })).toMatchObject({
+      hearts: 2, prepped: 0, streak: 0, bestStreak: 1, lastStars: null,
+    })
   })
 
   it('주문 수량은 5개까지 늘어나며 일부만 제출한 주문에는 매출을 적립하지 않는다', () => {
