@@ -78,10 +78,10 @@
 .contact-rim {position:absolute;left:2%;right:2%;bottom:-4px;height:54%;border-radius:0 0 50% 50%;border-bottom:5px solid #975322;opacity:var(--edge-heat);}
 .contact-rim:after {content:'';position:absolute;inset:0 0 -5px;border-radius:inherit;border-bottom:5px solid #42251a;opacity:var(--edge-char);}
 .cake-toast {opacity:var(--heat);background:radial-gradient(ellipse at 31% 23%,#bd702b 0%,transparent 23%),radial-gradient(ellipse at 70% 52%,#87401b,transparent 25%),radial-gradient(ellipse at 44% 72%,#b55b23,transparent 20%),radial-gradient(ellipse at 40% 40%,#f2b054,#db8939 70%,#efb764);transition:opacity 60ms linear;}
-.cooktop-back .cake-toast {background:radial-gradient(ellipse at 22% 55%,#904b24,transparent 26%),radial-gradient(ellipse at 61% 27%,#a55822,transparent 28%),radial-gradient(ellipse at 65% 73%,#ab6025,transparent 20%),radial-gradient(ellipse at 50% 44%,#f6c97c,#e6a244 68%,#c77e3a);}
+.service-sleeve .cake-toast {background:radial-gradient(ellipse at 22% 55%,#904b24,transparent 26%),radial-gradient(ellipse at 61% 27%,#a55822,transparent 28%),radial-gradient(ellipse at 65% 73%,#ab6025,transparent 20%),radial-gradient(ellipse at 50% 44%,#f6c97c,#e6a244 68%,#c77e3a);}
 .cake-char {opacity:var(--char);background:radial-gradient(ellipse at 43% 34%,#483128,#4f3126 58%,#8c4f28 83%,#c08042);}
 .cake-toast:before {content:'';position:absolute;inset:1% 2% 4%;border-radius:inherit;background:url('/kitchen/golden-pan.webp') 53.4% 73.25% / 420% 560%;box-shadow:inset 0 -3px 6px #b575288c;}
-.cooktop-back .cake-toast:before {transform:scaleX(-1);background-position:54% 72%;filter:saturate(.85) brightness(.94);}
+.service-sleeve .cake-toast:before {transform:scaleX(-1);background-position:54% 72%;filter:saturate(.85) brightness(.94);}
 .cooktop-back .cake-flight {animation:toss .5s ease-out both;}
 .cooktop-back .cake:after {content:'';position:absolute;inset:0;border-radius:inherit;background:radial-gradient(ellipse at 34% 24%,#fff2d5,#ebc58e 73%,#ba8554);animation:turn-surface .5s linear both;}
 @keyframes turn-surface {0%,38%{opacity:1;}48%,100%{opacity:0;}}
@@ -139,3 +139,4 @@
   @keyframes cue-in {from{opacity:.55;translate:0 4px;}to{opacity:1;translate:0;}}
 }
 .cooktop-burnt .pan-steam i {border-color:#716054;}
+.stir-instruction {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}

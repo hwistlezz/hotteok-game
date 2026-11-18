@@ -74,6 +74,25 @@ test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', asy
   await expect(page.getByRole('heading', { name: '호떡 만들기' })).toBeVisible()
 })
 
+test('뒷면이 타도 위에 보이는 첫 면의 무늬와 색은 유지된다', async ({page}) => {
+  await page.clock.install()
+  await page.goto('/')
+  await page.getByRole('button',{name:'조작 방법'}).tap()
+  await prepareWithKeyboard(page)
+  await holdWithTouch(page)
+  await page.clock.runFor(2_620)
+  await page.getByRole('button',{name:'뒤집기'}).tap()
+  await page.clock.runFor(700)
+  const surface=()=>page.locator('.cake-toast').evaluate(el=>{
+    const art=getComputedStyle(el,'::before')
+    return [getComputedStyle(el).opacity,art.transform,art.backgroundPosition,art.filter]
+  })
+  const firstSide=await surface()
+  await page.clock.fastForward(5_100)
+  await expect(page.getByRole('button',{name:'탄 호떡 버리기'})).toBeVisible()
+  expect(await surface()).toEqual(firstSide)
+})
+
 test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 검증한다', async ({ page, request }) => {
   test.setTimeout(150_000)
   await page.clock.install()
@@ -196,6 +215,7 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   const client=await page.context().newCDPSession(page)
   for (let stage=0; stage<3; stage++) {
     const direction=Number(await stir.getAttribute('data-direction'))
+    await expect(stir).toHaveAccessibleDescription(new RegExp(`${stage+1}번째 지시, ${direction===1?'시계':'반시계'} 방향`))
     for (let i=0; i<=33; i++) {
       const angle = i * direction * Math.PI / 4
       await client.send('Input.dispatchTouchEvent', { type:i===0?'touchStart':'touchMove',

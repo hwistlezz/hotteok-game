@@ -109,9 +109,12 @@ export function Kitchen({game,now,enabled,send}:{
       <li key={s} aria-current={i===index?'step':undefined} data-done={i<index}>{s}</li>)}</ol>
     <h1 id="phase-title">{title}</h1>
     <p className="hint" id="phase-hint">{phase==='redo'?`별 ${game.stars}개 · ${rules.required}개가 필요해요. 새 반죽으로 다시 구워요.`:hint}</p>
+    {phase==='knead'&&<span id="stir-instruction" role="status" aria-atomic="true" className="stir-instruction">
+      {cue.stage+1}번째 지시, {cue.direction===1?'시계':'반시계'} 방향
+    </span>}
     <button className={'griddle-input stage--'+phase} type="button" disabled={!enabled}
       data-direction={phase==='knead'?cue.direction:undefined}
-      aria-label={button} aria-describedby="phase-hint" onPointerDown={down} onPointerMove={move} onPointerUp={up}
+      aria-label={button} aria-describedby={phase==='knead'?'phase-hint stir-instruction':'phase-hint'} onPointerDown={down} onPointerMove={move} onPointerUp={up}
       onPointerCancel={cancel} onLostPointerCapture={e=>{if(gesture.current?.id===e.pointerId)cancel()}}
       onBlur={cancel} onClick={e=>{if(!suppressClick.current || !e.detail)activate(e.detail===0);suppressClick.current=false}}
       onKeyDown={e=>{
