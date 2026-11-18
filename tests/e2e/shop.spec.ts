@@ -308,7 +308,7 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await expect(page.getByLabel('하트 3개')).toBeVisible()
 })
 
-for (const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]) {
+for (const [width,height] of [[320,568],[360,681],[375,700],[390,740],[390,844],[844,390],[1280,800]]) {
   test(`주문과 조리대가 화면 안에 배치된다 (${width}×${height})`, async ({ page }) => {
     await page.clock.install()
     await page.setViewportSize({ width,height })
