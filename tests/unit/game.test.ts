@@ -6,6 +6,7 @@ import {
 
 function readyToServe(start = 0) {
   let game = reduceGame(newGame(false), { type: 'knead', amount: 100, now: start })
+  game = reduceGame(game, { type: 'portion', now: start })
   game = reduceGame(game, { type: 'press-start', now: start })
   game = reduceGame(game, { type: 'press-release', now: start + 900 })
   game = reduceGame(game, { type: 'cook', now: start + 3_400 })
@@ -13,17 +14,32 @@ function readyToServe(start = 0) {
 }
 
 describe('조리 게임', () => {
+  it('반죽을 다 저어도 한 덩이를 옮겨야 누르기를 시작한다', () => {
+    let game = reduceGame(newGame(false), { type:'knead', amount:60, now:0 })
+    game = reduceGame(game, { type:'knead', amount:-20, now:25 })
+    expect(game.dough).toBe(40)
+    game = reduceGame(game, { type:'knead', amount:60, now:50 })
+    expect(reduceGame(game, { type:'press-start', now:60 })).toBe(game)
+    expect(reduceGame(game, { type:'portion', now:70 }).phase).toBe('press')
+  })
+  it('실전에서 덜 익은 면을 일찍 들면 찢어지고 같은 주문을 다시 만든다', () => {
+    const game: GameState = { ...newGame(false), phase:'front', placed:1, since:200 }
+    expect(reduceGame(game, {type:'cook',now:649})).toBe(game)
+    const torn=reduceGame(game, {type:'cook',now:650})
+    expect(torn).toMatchObject({phase:'redo',score:0,placed:1})
+    expect(reduceGame(torn,{type:'discard',now:800})).toMatchObject({phase:'portion',placed:1,hearts:3})
+  })
   it('피크 타임에서 눈금을 1ms 놓친 호떡은 납품할 수 없고 예약 반죽으로 다시 굽는다', () => {
     const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 75 }
     const { start, end, burn, required } = cookingRules(back)
-    expect([end - start, required]).toEqual([320, 3])
+    expect([end - start, required]).toEqual([280, 3])
     for (const now of [start, end]) {
       expect(reduceGame(back, { type: 'cook', now })).toMatchObject({ phase: 'serve', stars: 3 })
     }
     const rejected = reduceGame(back, { type: 'cook', now: end + 1 })
     expect(reduceGame(rejected, { type: 'serve', now: end + 2 })).toBe(rejected)
     expect(reduceGame(rejected, { type: 'discard', now: end + 3 })).toMatchObject({
-      phase: 'knead', dough: 75, prepped: 0, score: 0, placed: 0, hearts: 3, orderAt: 0,
+      phase: 'portion', dough: 100, prepped: 75, score: 0, placed: 0, hearts: 3, orderAt: 0,
     })
     expect(reduceGame(back, { type: 'cook', now: burn }).phase).toBe('burnt')
   })
@@ -52,16 +68,18 @@ describe('조리 게임', () => {
 
   it('타는 시각에 뒤집어도 폐기해야 하며 하트는 차감되지 않는다', () => {
     let game = reduceGame(newGame(false), { type: 'knead', amount: 100, now: 0 })
+    game = reduceGame(game, { type: 'portion', now: 0 })
     game = reduceGame(game, { type: 'press-start', now: 0 })
     game = reduceGame(game, { type: 'press-release', now: 800 })
     game = reduceGame(game, { type: 'cook', now: 5_800 })
     expect(game).toMatchObject({ phase: 'burnt', hearts: 3, stars: 0 })
-    expect(reduceGame(game, { type: 'discard', now: 5_900 }).phase).toBe('knead')
+    expect(reduceGame(game, { type: 'discard', now: 5_900 }).phase).toBe('portion')
   })
 
   it('눌림 입력을 취소한 뒤 커서 해제나 복귀가 누르기 판정을 만들지 않는다', () => {
     const kneaded = reduceGame(newGame(false), { type: 'knead', amount: 100, now: 0 })
-    const pressed = reduceGame(kneaded, { type: 'press-start', now: 10 })
+    const placed = reduceGame(kneaded, { type: 'portion', now: 0 })
+    const pressed = reduceGame(placed, { type: 'press-start', now: 10 })
     const canceled = reduceGame(pressed, { type: 'cancel-press', now: 500 })
     expect(reduceGame(canceled, { type: 'press-release', now: 1_000 })).toBe(canceled)
   })
@@ -73,13 +91,13 @@ describe('조리 게임', () => {
 
   it('굽는 동안 준비한 반죽은 다음 손님에게 한 번만 전달한다', () => {
     const front = { ...newGame(false), phase: 'front' as const, stars: 1 }
-    let game = reduceGame(front, { type: 'prep', amount: 75, now: 100 })
+    let game = reduceGame(front, { type: 'prep', now: 100 })
     game = reduceGame(game, { type: 'cook', now: 2_600 })
-    game = reduceGame(game, { type: 'prep', amount: 50, now: 2_800 })
+    game = reduceGame(game, { type: 'prep', now: 2_800 })
     game = reduceGame(game, { type: 'cook', now: 5_200 })
     game = reduceGame(game, { type: 'serve', now: 6_000 })
-    expect(game).toMatchObject({ phase: 'press', dough: 100, prepped: 0, score: 2_000, streak: 1, bestStreak: 1 })
-    expect(reduceGame(game, { type: 'prep', amount: 25, now: 6_100 })).toBe(game)
+    expect(game).toMatchObject({ phase: 'knead', dough: 75, prepped: 0, score: 2_000, streak: 1, bestStreak: 1 })
+    expect(reduceGame(game, { type: 'prep', now: 6_100 })).toBe(game)
   })
 
   it('바삭한 주문은 늦은 눈금에서 별을 주고, 주문 만료 시 준비량과 연속 기록을 초기화한다', () => {
@@ -98,7 +116,7 @@ describe('조리 게임', () => {
     const served = reduceGame(readyToServe(), { type: 'serve', now: 6_000 })
     const second = { ...readyToServe(6_000), orderAt: 6_000, score: served.score, receipts: served.receipts }
     const partial = reduceGame(second, { type: 'serve', now: 12_000 })
-    expect(partial).toMatchObject({ placed: 1, score: 2_000 })
+    expect(partial).toMatchObject({ phase: 'portion', placed: 1, score: 2_000 })
     const expired = reduceGame(partial, { type: 'tick', now: 34_000 })
     expect(expired).toMatchObject({ placed: 0, score: 2_000, hearts: 2 })
   })

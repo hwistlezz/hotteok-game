@@ -4,6 +4,9 @@ import { normalizeNickname, orderLimit, orderQuantity, UNIT_PRICE } from '../gam
 import { beginRound, bestKey, fetchLeaderboard, readBest, registerScore, saveBest, won } from './api'
 import { Kitchen, type InputAction } from './Kitchen'
 import { MarketArt } from './MarketArt'
+import { CounterGuest } from './CounterGuest'
+import { CounterSound } from './CounterSound'
+
 import { KitchenScene } from './KitchenScene'
 
 type Session = { key: number; nickname: string | null; practice: boolean }
@@ -68,7 +71,7 @@ export function App() {
           </figure>
           <div className="home-card">
             <h1>호떡 만들기</h1>
-            <p className="intro">누르기와 양면 굽기로 별을 모으세요.<br />두 주문을 팔면 다음부터는 별 셋이 필요해요.</p>
+            <p className="intro">빙글빙글 반죽을 젓고, 한 덩이씩 철판에 올려요.<br />손님이 떠나기 전에 뜨거운 호떡을 건네세요.</p>
             <form onSubmit={(event) => {
               event.preventDefault()
               const nickname = normalizeNickname(input)
@@ -240,38 +243,39 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
       <div className="topbar">
         <button type="button" className="quiet" onClick={onHome}>← 처음으로</button>
         <span>{session.practice ? '연습' : session.nickname}</span>
+        <CounterSound phase={game.phase} paused={paused}/>
         <button type="button" className="quiet" disabled={paused || !ready} onClick={pause}>일시정지</button>
       </div>
       <div className="play-area">
         <aside className="order-rail" aria-label="주문대">
-        {session.practice ? (
-          <div className="order-card">
-            <MarketArt motif="bear" /><div><strong>연습 주문</strong><span>호떡 한 장을 구워봐요</span></div>
-            <button type="button" className="quiet" onClick={onPracticeExit}>건너뛰기</button>
-          </div>
-        ) : (
-          <>
-            <div className="scorebar">
+          <div className="scorebar">
+            {session.practice ? <strong>연습 주문</strong> : <>
               <span className="hearts" aria-label={`하트 ${game.hearts}개`}>
-                <span aria-hidden="true">{'♥'.repeat(game.hearts)}{'♡'.repeat(3 - game.hearts)}</span>
-              </span>
-              <strong aria-label="매출">{won(game.score)}</strong>
-            </div>
-            <div className="order-card">
-              <MarketArt motif="bear" />
-              <div><strong>{rules.label} {quantity}개</strong><span>{rules.shift} · 별 {rules.required}개 필요</span><span>포장 {game.placed}/{quantity}</span></div>
-              <span className={`timer${seconds <= 5 ? ' timer--urgent' : ''}`} aria-label="주문 남은 시간">
-                {seconds}초
-              </span>
-            </div>
-          </>
-        )}
+                <span aria-hidden="true">{'♥'.repeat(game.hearts)}{'♡'.repeat(3-game.hearts)}</span>
+              </span><strong aria-label="매출">{won(game.score)}</strong></>}
+            {session.practice && <button type="button" className="quiet" onClick={onPracticeExit}>건너뛰기</button>}
+          </div>
+          <CounterGuest index={game.receipts.length} delivery={game.deliveredAt!==null && now-game.deliveredAt<750 ? game.deliveredAt : null}
+            previous={lastOrder && now-game.orderAt<600 ? lastOrder.outcome : null}
+            onServe={ready && !paused && game.phase==='serve' ? ()=>send({type:'serve'}) : undefined}
+            mood={seconds<=5 && !session.practice ? 'urgent' : game.phase==='serve' ? 'happy' : 'waiting'}
+            message={session.practice ? '따끈한 호떡 한 장 주세요!' : seconds<=5 ? '제 호떡 곧 나올까요?' :
+              game.phase==='serve' ? '와, 맛있겠다!' : game.placed ? `이제 ${quantity-game.placed}장 남았네요!` :
+              `${rules.label} ${quantity}장 주세요!`}/>
+          <div className="ticket">
+            <div className="ticket-heading"><strong>{session.practice ? '연습' : rules.label+' '+quantity+'개'}</strong>
+              {!session.practice && <span className={'timer'+(seconds<=5?' timer--urgent':'')} aria-label="주문 남은 시간">{seconds}초</span>}</div>
+            <div className="order-slots" aria-label={`포장 ${game.placed}/${quantity}`}>
+              {Array.from({length:quantity},(_,i)=><i key={i} data-filled={i<game.placed} data-active={i===game.placed}><span>{i+1}</span></i>)}
+              <b>{game.placed+1}번째 장 조리 중</b></div>
+            {!session.practice && <small>{rules.shift} · 별 {rules.required}개 필요</small>}
+          </div>
           {!session.practice && (<div className="prep-card">
-            <button type="button" disabled={!ready || paused || game.prepped === 100 || (game.phase !== 'front' && game.phase !== 'back')}
-              onClick={() => send({ type: 'prep', amount: 25 })}>
+            <button type="button" disabled={!ready || paused || game.folded || game.prepped >= 75 || (game.phase !== 'front' && game.phase !== 'back')}
+              onClick={() => send({ type: 'prep' })}>
               <img src="/kitchen/dough.webp" width="42" height="38" alt="" />
-              <span><strong>{game.prepped === 100 ? '반죽 준비 완료' : '다음 반죽 준비'}</strong>
-              <small>{game.prepped ? `준비 ${game.prepped}%` : '굽는 동안 네 번 톡톡'}</small></span>
+              <span><strong>{game.prepped >= 75 ? '밑준비 완료' : '다음 반죽 준비'}</strong>
+              <small>{game.prepped ? `준비 ${game.prepped}%` : '한 면마다 한 번'}</small></span>
             </button>
           </div>)}
           {lastOrder && now-game.orderAt < 1800 && <strong key={game.receipts.length} className="order-feedback" role="status">
@@ -279,7 +283,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen game={game} now={now} enabled={ready && !paused} send={send} />
+        <Kitchen key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         {paused && (
           <section className="pause" role="dialog" aria-modal="true" aria-label="일시정지">
             <div>

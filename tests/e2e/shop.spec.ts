@@ -1,9 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 
+async function prepareWithKeyboard(page: Page) {
+  const bowl = page.getByRole('button', { name: '반죽 젓기' })
+  await expect(bowl).toBeEnabled()
+  for (let n=0; n<8; n++) await bowl.press('Space')
+  await page.getByRole('button', { name: '반죽 옮기기' }).press('Enter')
+}
+
 async function cookOne(page: Page) {
-  for (let index = 0; index < 8; index += 1) {
-    await page.getByRole('button', { name: '반죽 둥글리기' }).tap()
-  }
+  await prepareWithKeyboard(page)
   await page.getByRole('button', { name: '누르개 길게 누르기' }).focus()
   await page.keyboard.down('Space')
   await page.clock.runFor(900)
@@ -37,9 +42,7 @@ test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', asy
   await page.clock.fastForward(22_000)
   await expect(page.getByRole('dialog', { name: '일시정지' })).toBeVisible()
   await page.getByRole('button', { name: '재개' }).tap()
-  for (let index = 0; index < 8; index += 1) {
-    await page.getByRole('button', { name: '반죽 둥글리기' }).tap()
-  }
+  await prepareWithKeyboard(page)
   await holdWithTouch(page)
   await expect(page.getByRole('heading', { name: '앞면 굽기' })).toBeVisible()
   await page.clock.fastForward(2_600)
@@ -165,18 +168,35 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   await page.getByLabel('닉네임').fill('달밤손님')
   await page.getByRole('button', { name: '게임 시작' }).tap()
   await page.getByRole('button', { name: '건너뛰기' }).tap()
-  const dough = page.getByRole('button', { name: '반죽 둥글리기' })
-  await expect(dough).toBeEnabled()
-  const box = (await dough.boundingBox())!
-  const x = box.x + box.width / 2, y = box.y + box.height / 2
-  await page.mouse.move(x-50, y)
-  await page.mouse.down()
-  for (const offset of [50, -50, 50]) await page.mouse.move(x+offset,y,{ steps: 6 })
-  await page.mouse.up()
+  const stir = page.getByRole('button', { name: '반죽 젓기' })
+  await expect(stir).toBeEnabled()
+  await stir.tap()
+  await expect(page.getByRole('progressbar', { name: '젓기' })).toHaveAttribute('aria-valuenow','0')
+  const bowl = (await page.locator('.mix-bowl').boundingBox())!
+  const x=bowl.x+bowl.width/2, y=bowl.y+bowl.height/2
+  const client=await page.context().newCDPSession(page)
+  for (let i=0; i<=52; i++) {
+    const angle = i * Math.PI / 12
+    await client.send('Input.dispatchTouchEvent', { type:i===0?'touchStart':'touchMove',
+      touchPoints:[{x:x+Math.cos(angle)*bowl.width*.33,y:y+Math.sin(angle)*bowl.height*.33}] })
+  }
+  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+  await client.detach()
+  const source=(await page.locator('.portion-ball').boundingBox())!
+  const pan=(await page.locator('.hob').boundingBox())!
+  const dragBall=async (toX:number,toY:number)=>{
+    await page.mouse.move(source.x+source.width/2,source.y+source.height/2)
+    await page.mouse.down()
+    await page.mouse.move(toX,toY,{steps:6})
+    await page.mouse.up()
+  }
+  await dragBall(source.x,source.y)
+  await expect(page.getByRole('button',{name:'반죽 옮기기'})).toBeEnabled()
+  await dragBall(pan.x+pan.width/2,pan.y+pan.height/2)
   await holdWithTouch(page)
   const prep = page.getByRole('button', { name: /다음 반죽 준비/ })
-  for (let i=0; i<4; i++) await prep.tap()
-  await expect(page.getByRole('button', { name: /반죽 준비 완료/ })).toBeDisabled()
+  await prep.tap()
+  await expect(prep).toBeDisabled()
   await page.clock.fastForward(2_600)
   await page.mouse.move(x,y)
   await page.mouse.down()
@@ -187,7 +207,24 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   await page.getByRole('button', { name: '꺼내기' }).tap()
   await page.getByRole('button', { name: '호떡 제출' }).tap()
   await expect(page.getByText('바삭하게 2개')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '납작하게 꾹' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '반죽 젓기' })).toBeVisible()
+  const stirNext = page.getByRole('button',{name:'반죽 젓기'})
+  for(let i=0;i<8 && await stirNext.count();i++) await stirNext.press('Space')
+  for (const [front,back] of [[3_500,3_760],[3_760,3_500]]) {
+    await page.getByRole('button',{name:'반죽 옮기기'}).press('Enter')
+    await holdWithTouch(page)
+    await page.clock.fastForward(front)
+    await page.getByRole('button',{name:'뒤집기'}).tap()
+    await page.clock.fastForward(back)
+    await page.getByRole('button',{name:'꺼내기'}).tap()
+    await page.getByRole('button',{name:'손님에게 건네기'}).tap()
+    if (front===3_500) {
+      await expect(page.getByLabel('포장 1/2')).toBeVisible()
+      await expect(page.getByLabel('매출')).toHaveText('2,000원')
+      await expect(page.getByRole('button',{name:'반죽 옮기기'})).toBeEnabled()
+    }
+  }
+  await expect(page.getByLabel('매출')).toHaveText('6,000원')
 })
 
 test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을 다시 굽는다', async ({ page }) => {
@@ -197,8 +234,7 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await page.getByRole('button', { name: '게임 시작' }).tap()
   await page.getByRole('button', { name: '건너뛰기' }).tap()
   await expect(page.getByText('첫 영업 · 별 2개 필요')).toBeVisible()
-  const mix = page.getByRole('button', { name: '반죽 둥글리기' })
-  for (let index = 0; index < 8; index++) await mix.tap()
+  await prepareWithKeyboard(page)
   await page.getByRole('button', { name: '누르개 길게 누르기' }).focus()
   await page.keyboard.down('Space')
   await page.clock.runFor(1_350)
@@ -210,7 +246,7 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await expect(page.getByRole('heading', { name: '다시 구워주세요' })).toBeVisible()
   await expect(page.getByRole('button', { name: '호떡 제출' })).toHaveCount(0)
   await page.getByRole('button', { name: '다시 굽기' }).tap()
-  await expect(mix).toBeEnabled()
+  await expect(page.getByRole('button',{name:'반죽 옮기기'})).toBeEnabled()
   await expect(page.getByLabel('매출')).toHaveText('0원')
   await expect(page.getByLabel('하트 3개')).toBeVisible()
 })
@@ -223,7 +259,7 @@ for (const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]) {
     await page.getByLabel('닉네임').fill('시장손님')
     await page.getByRole('button', { name: '게임 시작' }).tap()
     await page.getByRole('button', { name: '건너뛰기' }).tap()
-    const stove = await page.getByRole('button', { name: '반죽 둥글리기' }).boundingBox()
+    const stove = await page.getByRole('button', { name: '반죽 젓기' }).boundingBox()
     const order = await page.getByRole('complementary', { name: '주문대' }).boundingBox()
     expect(stove).toBeTruthy()
     expect(order).toBeTruthy()
