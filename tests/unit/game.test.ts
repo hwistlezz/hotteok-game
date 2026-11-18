@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { newGame, reduceGame } from '../../src/game/game'
+import { cookingRules, newGame, reduceGame, type GameState } from '../../src/game/game'
 import {
   normalizeNickname, orderLimit, orderQuantity, ROUND_REQUEST_TIMEOUT_MS, scoreReceipts, scoreRound,
 } from '../../src/game/rules'
@@ -13,6 +13,29 @@ function readyToServe(start = 0) {
 }
 
 describe('조리 게임', () => {
+  it('피크 타임에서 눈금을 1ms 놓친 호떡은 납품할 수 없고 예약 반죽으로 다시 굽는다', () => {
+    const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 75 }
+    const { start, end, burn, required } = cookingRules(back)
+    expect([end - start, required]).toEqual([320, 3])
+    for (const now of [start, end]) {
+      expect(reduceGame(back, { type: 'cook', now })).toMatchObject({ phase: 'serve', stars: 3 })
+    }
+    const rejected = reduceGame(back, { type: 'cook', now: end + 1 })
+    expect(reduceGame(rejected, { type: 'serve', now: end + 2 })).toBe(rejected)
+    expect(reduceGame(rejected, { type: 'discard', now: end + 3 })).toMatchObject({
+      phase: 'knead', dough: 75, prepped: 0, score: 0, placed: 0, hearts: 3, orderAt: 0,
+    })
+    expect(reduceGame(back, { type: 'cook', now: burn }).phase).toBe('burnt')
+  })
+
+  it('영업 실적으로만 난이도가 오르고 연습은 별이 부족해도 끝까지 익힐 수 있다', () => {
+    const base = newGame(false)
+    const missed = reduceGame(base, { type: 'tick', now: 18_000 })
+    expect(cookingRules(missed).shift).toBe('첫 영업')
+    expect(cookingRules({ ...base, servedOrders: 1 }).shift).toBe('손님 몰림')
+    const practice = { ...newGame(true), phase: 'back' as const, stars: 0 }
+    expect(reduceGame(practice, { type: 'cook', now: 4_000 })).toMatchObject({ phase: 'serve', stars: 0 })
+  })
   it('두 면을 익힌 주문에만 매출을 한 번 적립한다', () => {
     const game = readyToServe()
     expect(game).toMatchObject({ phase: 'serve', stars: 3 })

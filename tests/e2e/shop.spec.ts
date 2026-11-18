@@ -190,6 +190,31 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   await expect(page.getByRole('heading', { name: '납작하게 꾹' })).toBeVisible()
 })
 
+test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을 다시 굽는다', async ({ page }) => {
+  await page.clock.install()
+  await page.goto('/')
+  await page.getByLabel('닉네임').fill('첫손님')
+  await page.getByRole('button', { name: '게임 시작' }).tap()
+  await page.getByRole('button', { name: '건너뛰기' }).tap()
+  await expect(page.getByText('첫 영업 · 별 2개 필요')).toBeVisible()
+  const mix = page.getByRole('button', { name: '반죽 둥글리기' })
+  for (let index = 0; index < 8; index++) await mix.tap()
+  await page.getByRole('button', { name: '누르개 길게 누르기' }).focus()
+  await page.keyboard.down('Space')
+  await page.clock.runFor(1_350)
+  await page.keyboard.up('Space')
+  await page.clock.fastForward(3_550)
+  await page.getByRole('button', { name: '뒤집기' }).tap()
+  await page.clock.fastForward(3_550)
+  await page.getByRole('button', { name: '꺼내기' }).tap()
+  await expect(page.getByRole('heading', { name: '다시 구워주세요' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '호떡 제출' })).toHaveCount(0)
+  await page.getByRole('button', { name: '다시 굽기' }).tap()
+  await expect(mix).toBeEnabled()
+  await expect(page.getByLabel('매출')).toHaveText('0원')
+  await expect(page.getByLabel('하트 3개')).toBeVisible()
+})
+
 for (const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]) {
   test(`주문과 조리대가 화면 안에 배치된다 (${width}×${height})`, async ({ page }) => {
     await page.setViewportSize({ width,height })
