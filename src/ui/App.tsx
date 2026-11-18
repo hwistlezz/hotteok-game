@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { cookingRules, newGame, reduceGame } from '../game/game'
 import { normalizeNickname, orderLimit, orderQuantity, UNIT_PRICE } from '../game/rules'
 import { beginRound, bestKey, fetchLeaderboard, readBest, registerScore, saveBest, won } from './api'
@@ -9,7 +9,7 @@ import { CounterSound } from './CounterSound'
 
 import { KitchenScene } from './KitchenScene'
 
-type Session = { key: number; nickname: string | null; practice: boolean }
+type Session = { seed: number; key: number; nickname: string | null; practice: boolean }
 
 export function App() {
   const [input, setInput] = useState('')
@@ -22,7 +22,7 @@ export function App() {
 
   function openSession(nickname: string | null, practice: boolean) {
     sessionKey.current += 1
-    setSession({ key: sessionKey.current, nickname, practice })
+    setSession({ seed: crypto.getRandomValues(new Uint32Array(1))[0], key: sessionKey.current, nickname, practice })
   }
 
   const updateBest = useCallback((score: number) => {
@@ -111,7 +111,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
   session: Session; best: number; onBest: (score: number) => void
   onHome: () => void; onReplay: () => void; onPracticeExit: () => void
 }) {
-  const [game, dispatch] = useReducer(reduceGame, session.practice, newGame)
+  const [game, dispatch] = useReducer(reduceGame, session, ({ practice, seed }) => newGame(practice, seed))
   const [now, setNow] = useState(0)
   const [ready, setReady] = useState(false)
   const [paused, setPaused] = useState(false)
@@ -121,6 +121,24 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
   })
   const [registration, setRegistration] = useState<'idle' | 'sending' | 'saved' | 'error'>('idle')
   const clock = useRef({ elapsed: 0, anchor: null as number | null })
+
+  const pauseDialog = useRef<HTMLDialogElement>(null)
+  const cookingButton = useRef<HTMLButtonElement>(null)
+
+  useLayoutEffect(() => {
+    const dialog = pauseDialog.current
+    if (paused && dialog && !dialog.open) dialog.showModal()
+    else if (!paused && dialog?.open) {
+      dialog.close()
+      cookingButton.current?.focus({ preventScroll: true })
+    }
+  }, [paused])
+
+  function resume() {
+    if (document.hidden) return
+    clock.current.anchor = performance.now()
+    setPaused(false)
+  }
 
   const readTime = useCallback(() => {
     const { elapsed, anchor } = clock.current
@@ -153,7 +171,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
       const timestamp = readTime()
       setNow(timestamp)
       dispatch({ type: 'tick', now: timestamp })
-    }, 50)
+    }, 25)
     const handleVisibility = () => { if (document.hidden) pause() }
     document.addEventListener('visibilitychange', handleVisibility)
     if (document.hidden) pause()
@@ -271,11 +289,11 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
             {!session.practice && <small>{rules.shift} · 별 {rules.required}개 필요</small>}
           </div>
           {!session.practice && (<div className="prep-card">
-            <button type="button" disabled={!ready || paused || game.folded || game.prepped >= 75 || (game.phase !== 'front' && game.phase !== 'back')}
+            <button type="button" disabled={!ready || paused || game.folded || game.prepped >= 2 || (game.phase !== 'front' && game.phase !== 'back')}
               onClick={() => send({ type: 'prep' })}>
               <img src="/kitchen/dough.webp" width="42" height="38" alt="" />
-              <span><strong>{game.prepped >= 75 ? '밑준비 완료' : '다음 반죽 준비'}</strong>
-              <small>{game.prepped ? `준비 ${game.prepped}%` : '한 면마다 한 번'}</small></span>
+              <span><strong>{game.prepped >= 2 ? '밑준비 완료' : '다음 반죽 준비'}</strong>
+              <small>{game.prepped ? `다음 주문 ${game.prepped}바퀴 단축` : '한 면마다 한 번'}</small></span>
             </button>
           </div>)}
           {lastOrder && now-game.orderAt < 1800 && <strong key={game.receipts.length} className="order-feedback" role="status">
@@ -283,19 +301,13 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
-        {paused && (
-          <section className="pause" role="dialog" aria-modal="true" aria-label="일시정지">
-            <div>
-              <h2>잠깐 쉬는 중</h2>
-              <button type="button" autoFocus className="primary" onClick={() => {
-                if (document.hidden) return
-                clock.current.anchor = performance.now()
-                setPaused(false)
-              }}>재개</button>
-            </div>
-          </section>
-        )}
+        <Kitchen buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
+          onCancel={event => { event.preventDefault(); resume() }}
+          onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
+          <h2 id="pause-title">일시정지</h2>
+          <button type="button" className="primary" onClick={resume}>재개</button>
+        </dialog>
       </div>
     </>
   )

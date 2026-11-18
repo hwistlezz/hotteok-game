@@ -110,9 +110,9 @@ input[aria-invalid=true] { border-color: var(--red); }
 .zone { position: absolute; inset-block: 0; left: var(--zone-start); width: var(--zone-width); border-inline: 2px solid #385342; background: repeating-linear-gradient(125deg,#6e986b9c 0 3px,#d2e3ad99 3px 6px); }
 .needle { position: absolute; height: 100%; border-left: 3px solid var(--ink); transform: translateX(-2px); }
 .quality { min-height: 1.3em; margin-top: 5px; font-size: .79rem; font-weight: 800; color: var(--red); }
-.pause { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: 16px; background: #283830b8; }
-.pause > div,.result,.leaderboard { background: var(--paper); padding: 24px; }
-.pause > div { width: min(290px,100%); border: 2px solid var(--ink); text-align: center; }
+.pause { width: min(290px,calc(100% - 32px)); border: 2px solid var(--ink); text-align: center; color: var(--ink); }
+.pause::backdrop { background: #283830b8; }
+.pause,.result,.leaderboard { background: var(--paper); padding: 24px; }
 .pause h2 { margin-bottom: 12px; }
 .station[data-paused=true] * { animation-play-state: paused; }
 .result,.leaderboard { max-width: 520px; margin: auto; text-align: center; }
