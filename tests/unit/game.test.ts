@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { cookingRules, newGame, reduceGame, type GameState } from '../../src/game/game'
+import { contactSurface, cookingRules, newGame, stirCue, reduceGame, type GameState } from '../../src/game/game'
 import {
   normalizeNickname, orderLimit, orderQuantity, ROUND_REQUEST_TIMEOUT_MS, scoreReceipts, scoreRound,
 } from '../../src/game/rules'
 
+function mix(game: GameState, now = 0) {
+  while (game.phase === 'knead') {
+    game = reduceGame(game, { type: 'knead', amount: stirCue(game).direction * .5, now })
+  }
+  return game
+}
+
 function readyToServe(start = 0) {
-  let game = reduceGame(newGame(false), { type: 'knead', amount: 100, now: start })
+  let game = mix(newGame(false), start)
   game = reduceGame(game, { type: 'portion', now: start })
   game = reduceGame(game, { type: 'press-start', now: start })
   game = reduceGame(game, { type: 'press-release', now: start + 900 })
@@ -15,10 +22,20 @@ function readyToServe(start = 0) {
 
 describe('조리 게임', () => {
   it('반죽을 다 저어도 한 덩이를 옮겨야 누르기를 시작한다', () => {
-    let game = reduceGame(newGame(false), { type:'knead', amount:60, now:0 })
-    game = reduceGame(game, { type:'knead', amount:-20, now:25 })
-    expect(game.dough).toBe(40)
-    game = reduceGame(game, { type:'knead', amount:60, now:50 })
+    for (let seed=0; seed<16; seed++) {
+      let batch = newGame(false, seed)
+      const directions = new Set<number>()
+      for (let stage=0; stage<3; stage++) {
+        const { direction } = stirCue(batch)
+        directions.add(direction)
+        batch = reduceGame(batch, { type:'knead', amount:-direction, now:1 })
+        expect(batch.turns).toBe(stage*4)
+        for(let i=0;i<8;i++) batch=reduceGame(batch,{type:'knead',amount:direction*.5,now:2})
+      }
+      expect(directions.size).toBe(2)
+      expect(batch.phase).toBe('portion')
+    }
+    const game = mix(newGame(false))
     expect(reduceGame(game, { type:'press-start', now:60 })).toBe(game)
     expect(reduceGame(game, { type:'portion', now:70 }).phase).toBe('press')
   })
@@ -30,18 +47,35 @@ describe('조리 게임', () => {
     expect(reduceGame(torn,{type:'discard',now:800})).toMatchObject({phase:'portion',placed:1,hearts:3})
   })
   it('피크 타임에서 눈금을 1ms 놓친 호떡은 납품할 수 없고 예약 반죽으로 다시 굽는다', () => {
-    const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 75 }
+    const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 2 }
     const { start, end, burn, required } = cookingRules(back)
-    expect([end - start, required]).toEqual([280, 3])
+    expect([end - start, required]).toEqual([150, 3])
     for (const now of [start, end]) {
       expect(reduceGame(back, { type: 'cook', now })).toMatchObject({ phase: 'serve', stars: 3 })
     }
     const rejected = reduceGame(back, { type: 'cook', now: end + 1 })
     expect(reduceGame(rejected, { type: 'serve', now: end + 2 })).toBe(rejected)
     expect(reduceGame(rejected, { type: 'discard', now: end + 3 })).toMatchObject({
-      phase: 'portion', dough: 100, prepped: 75, score: 0, placed: 0, hearts: 3, orderAt: 0,
+      phase: 'portion', turns: 12, prepped: 2, score: 0, placed: 0, hearts: 3, orderAt: 0,
     })
     expect(reduceGame(back, { type: 'cook', now: burn }).phase).toBe('burnt')
+  })
+
+  it('뒤집을 때만 윗면에 직전 접촉면의 색을 기록하고 불판에서 타도 윗면 색은 유지한다', () => {
+    const front = { ...newGame(false), phase:'front' as const }
+    expect(reduceGame(front,{type:'tick',now:2400}).exposed.toast).toBe(0)
+    const back = reduceGame(front,{type:'cook',now:2600})
+    expect(back.exposed).toEqual(contactSurface(2600,cookingRules(front)))
+    expect(reduceGame(back,{type:'tick',now:4600}).exposed).toBe(back.exposed)
+    expect(reduceGame(back,{type:'tick',now:7600})).toMatchObject({phase:'burnt',exposed:back.exposed})
+  })
+
+  it('누르기 합격 구간의 양 끝과 앞뒤 1ms를 구분한다', () => {
+    const game={...newGame(false),phase:'press' as const,pressAt:0,servedOrders:2}
+    const {pressStart,pressEnd}=cookingRules(game)
+    for(const [now,stars] of [[pressStart-1,0],[pressStart,1],[pressEnd,1],[pressEnd+1,0]]) {
+      expect(reduceGame(game,{type:'press-release',now}).stars).toBe(stars)
+    }
   })
 
   it('영업 실적으로만 난이도가 오르고 연습은 별이 부족해도 끝까지 익힐 수 있다', () => {
@@ -56,7 +90,7 @@ describe('조리 게임', () => {
     const game = readyToServe()
     expect(game).toMatchObject({ phase: 'serve', stars: 3 })
     const served = reduceGame(game, { type: 'serve', now: 6_000 })
-    expect(served).toMatchObject({ score: 2_000, phase: 'knead', dough: 25 })
+    expect(served).toMatchObject({ score: 2_000, phase: 'knead', turns: 1 })
     expect(reduceGame(served, { type: 'serve', now: 6_000 })).toBe(served)
   })
 
@@ -67,7 +101,7 @@ describe('조리 게임', () => {
   })
 
   it('타는 시각에 뒤집어도 폐기해야 하며 하트는 차감되지 않는다', () => {
-    let game = reduceGame(newGame(false), { type: 'knead', amount: 100, now: 0 })
+    let game = mix(newGame(false), 0)
     game = reduceGame(game, { type: 'portion', now: 0 })
     game = reduceGame(game, { type: 'press-start', now: 0 })
     game = reduceGame(game, { type: 'press-release', now: 800 })
@@ -77,7 +111,7 @@ describe('조리 게임', () => {
   })
 
   it('눌림 입력을 취소한 뒤 커서 해제나 복귀가 누르기 판정을 만들지 않는다', () => {
-    const kneaded = reduceGame(newGame(false), { type: 'knead', amount: 100, now: 0 })
+    const kneaded = mix(newGame(false), 0)
     const placed = reduceGame(kneaded, { type: 'portion', now: 0 })
     const pressed = reduceGame(placed, { type: 'press-start', now: 10 })
     const canceled = reduceGame(pressed, { type: 'cancel-press', now: 500 })
@@ -96,13 +130,13 @@ describe('조리 게임', () => {
     game = reduceGame(game, { type: 'prep', now: 2_800 })
     game = reduceGame(game, { type: 'cook', now: 5_200 })
     game = reduceGame(game, { type: 'serve', now: 6_000 })
-    expect(game).toMatchObject({ phase: 'knead', dough: 75, prepped: 0, score: 2_000, streak: 1, bestStreak: 1 })
+    expect(game).toMatchObject({ phase: 'knead', turns: 2, prepped: 0, score: 2_000, streak: 1, bestStreak: 1 })
     expect(reduceGame(game, { type: 'prep', now: 6_100 })).toBe(game)
   })
 
   it('바삭한 주문은 늦은 눈금에서 별을 주고, 주문 만료 시 준비량과 연속 기록을 초기화한다', () => {
     const order = reduceGame(readyToServe(), { type: 'serve', now: 6_000 })
-    const front = { ...order, phase: 'front' as const, since: 6_000, prepped: 50 }
+    const front = { ...order, phase: 'front' as const, since: 6_000, prepped: 1 }
     expect(reduceGame(front, { type: 'cook', now: 8_600 }).stars).toBe(0)
     expect(reduceGame(front, { type: 'cook', now: 9_500 }).stars).toBe(1)
     expect(reduceGame(front, { type: 'tick', now: 34_000 })).toMatchObject({

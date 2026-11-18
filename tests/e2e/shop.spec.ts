@@ -1,9 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 
-async function prepareWithKeyboard(page: Page) {
+async function stirWithKeyboard(page: Page) {
   const bowl = page.getByRole('button', { name: '반죽 젓기' })
   await expect(bowl).toBeEnabled()
-  for (let n=0; n<8; n++) await bowl.press('Space')
+  for(let i=0; i<24 && await bowl.count(); i++) {
+    const clockwise = await bowl.getAttribute('data-direction') === '1'
+    await bowl.press(clockwise ? 'ArrowRight' : 'ArrowLeft')
+  }
+}
+
+async function prepareWithKeyboard(page: Page) {
+  await stirWithKeyboard(page)
   await page.getByRole('button', { name: '반죽 옮기기' }).press('Enter')
 }
 
@@ -21,7 +28,7 @@ async function cookOne(page: Page) {
   await page.getByRole('button', { name: '호떡 제출' }).tap()
 }
 
-async function holdWithTouch(page: Page) {
+async function holdWithTouch(page: Page, duration = 900) {
   const target = page.getByRole('button', { name: '누르개 길게 누르기' })
   const box = await target.boundingBox()
   if (!box) throw new Error('누르개가 표시되지 않았습니다.')
@@ -29,7 +36,7 @@ async function holdWithTouch(page: Page) {
   await client.send('Input.dispatchTouchEvent', {
     type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
   })
-  await page.clock.runFor(900)
+  await page.clock.runFor(duration)
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await client.detach()
 }
@@ -45,9 +52,21 @@ test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', asy
   await prepareWithKeyboard(page)
   await holdWithTouch(page)
   await expect(page.getByRole('heading', { name: '앞면 굽기' })).toBeVisible()
-  await page.clock.fastForward(2_600)
+  const top=page.locator('.cake-toast')
+  const rim=page.locator('.contact-rim')
+  const opacity=(layer: typeof top)=>layer.evaluate(el=>Number(getComputedStyle(el).opacity))
+  await page.clock.runFor(1_200)
+  expect(await opacity(top)).toBe(0)
+  const warmRim=await opacity(rim)
+  await page.clock.runFor(1_400)
+  expect(await opacity(top)).toBe(0)
+  expect(await opacity(rim)).toBeGreaterThan(warmRim)
   await page.getByRole('button', { name: '뒤집기' }).tap()
-  await page.clock.fastForward(2_600)
+  await page.clock.runFor(700)
+  const revealed=await opacity(top)
+  expect(revealed).toBeGreaterThan(.8)
+  await page.clock.runFor(1_900)
+  expect(await opacity(top)).toBe(revealed)
   await page.getByRole('button', { name: '꺼내기' }).tap()
   await page.getByRole('button', { name: '호떡 제출' }).tap()
   await expect(page.getByRole('heading', { name: '연습 완료!' })).toBeVisible()
@@ -175,12 +194,15 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   const bowl = (await page.locator('.mix-bowl').boundingBox())!
   const x=bowl.x+bowl.width/2, y=bowl.y+bowl.height/2
   const client=await page.context().newCDPSession(page)
-  for (let i=0; i<=52; i++) {
-    const angle = i * Math.PI / 12
-    await client.send('Input.dispatchTouchEvent', { type:i===0?'touchStart':'touchMove',
-      touchPoints:[{x:x+Math.cos(angle)*bowl.width*.33,y:y+Math.sin(angle)*bowl.height*.33}] })
+  for (let stage=0; stage<3; stage++) {
+    const direction=Number(await stir.getAttribute('data-direction'))
+    for (let i=0; i<=33; i++) {
+      const angle = i * direction * Math.PI / 4
+      await client.send('Input.dispatchTouchEvent', { type:i===0?'touchStart':'touchMove',
+        touchPoints:[{x:x+Math.cos(angle)*bowl.width*.33,y:y+Math.sin(angle)*bowl.height*.33}] })
+    }
+    await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
   }
-  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
   await client.detach()
   const source=(await page.locator('.portion-ball').boundingBox())!
   const pan=(await page.locator('.hob').boundingBox())!
@@ -208,11 +230,10 @@ test('드래그 반죽, 위로 밀어 뒤집기, 다음 반죽 예약이 한 주
   await page.getByRole('button', { name: '호떡 제출' }).tap()
   await expect(page.getByText('바삭하게 2개')).toBeVisible()
   await expect(page.getByRole('heading', { name: '반죽 젓기' })).toBeVisible()
-  const stirNext = page.getByRole('button',{name:'반죽 젓기'})
-  for(let i=0;i<8 && await stirNext.count();i++) await stirNext.press('Space')
+  await stirWithKeyboard(page)
   for (const [front,back] of [[3_500,3_760],[3_760,3_500]]) {
     await page.getByRole('button',{name:'반죽 옮기기'}).press('Enter')
-    await holdWithTouch(page)
+    await holdWithTouch(page, front===3_500 ? 1000 : 1120)
     await page.clock.fastForward(front)
     await page.getByRole('button',{name:'뒤집기'}).tap()
     await page.clock.fastForward(back)
@@ -239,9 +260,9 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await page.keyboard.down('Space')
   await page.clock.runFor(1_350)
   await page.keyboard.up('Space')
-  await page.clock.fastForward(3_550)
+  await page.clock.fastForward(2_990)
   await page.getByRole('button', { name: '뒤집기' }).tap()
-  await page.clock.fastForward(3_550)
+  await page.clock.fastForward(2_990)
   await page.getByRole('button', { name: '꺼내기' }).tap()
   await expect(page.getByRole('heading', { name: '다시 구워주세요' })).toBeVisible()
   await expect(page.getByRole('button', { name: '호떡 제출' })).toHaveCount(0)
