@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { cookTarget, newGame, reduceGame } from '../game/game'
+import { cookingRules, newGame, reduceGame } from '../game/game'
 import { normalizeNickname, orderLimit, orderQuantity, UNIT_PRICE } from '../game/rules'
 import { beginRound, bestKey, fetchLeaderboard, readBest, registerScore, saveBest, won } from './api'
 import { Kitchen, type InputAction } from './Kitchen'
 import { MarketArt } from './MarketArt'
+import { KitchenScene } from './KitchenScene'
 
 type Session = { key: number; nickname: string | null; practice: boolean }
 
@@ -62,13 +63,12 @@ export function App() {
       ) : (
         <div className="home-layout">
           <figure className="shop-poster">
-            <div className="poster-window"><MarketArt motif="market" />
-              <i className="snow" aria-hidden="true" /></div>
+            <div className="poster-window"><KitchenScene scene="finished" /></div>
             <figcaption><strong>달밤 호떡집</strong><span>한 장 <b>2,000원</b></span></figcaption>
           </figure>
           <div className="home-card">
             <h1>호떡 만들기</h1>
-            <p className="intro">노릇할 때 뒤집고, 따끈할 때 건네세요.<br />손님이 기다리는 동안 몇 장을 구울 수 있을까요?</p>
+            <p className="intro">누르기와 양면 굽기로 별을 모으세요.<br />두 주문을 팔면 다음부터는 별 셋이 필요해요.</p>
             <form onSubmit={(event) => {
               event.preventDefault()
               const nickname = normalizeNickname(input)
@@ -175,6 +175,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
   }, [game.finished, game.score, onBest, session.practice])
 
   const quantity = orderQuantity(game.receipts.length)
+  const rules = cookingRules(game)
   const lastOrder = game.receipts.at(-1)
   const seconds = Math.max(0, Math.ceil((orderLimit(quantity) - (now - game.orderAt)) / 1000))
 
@@ -201,7 +202,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
     return (
       <div className="result">
         <button type="button" className="quiet back" onClick={onHome}>← 처음으로</button>
-        <MarketArt motif="pancake" className="result-art" />
+        <div className="result-window"><KitchenScene scene={session.practice || game.servedOrders > 0 ? 'finished' : 'burnt'} /></div>
         <h1>{session.practice ? '연습 완료!' : '오늘 장사 끝!'}</h1>
         {session.practice ? (
           <p>노릇한 호떡 한 장을 완성했어요.</p>
@@ -258,7 +259,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
             </div>
             <div className="order-card">
               <MarketArt motif="bear" />
-              <div><strong>{cookTarget(game.receipts.length).label} {quantity}개</strong><span>포장 {game.placed}/{quantity}</span></div>
+              <div><strong>{rules.label} {quantity}개</strong><span>{rules.shift} · 별 {rules.required}개 필요</span><span>포장 {game.placed}/{quantity}</span></div>
               <span className={`timer${seconds <= 5 ? ' timer--urgent' : ''}`} aria-label="주문 남은 시간">
                 {seconds}초
               </span>
@@ -268,7 +269,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
           {!session.practice && (<div className="prep-card">
             <button type="button" disabled={!ready || paused || game.prepped === 100 || (game.phase !== 'front' && game.phase !== 'back')}
               onClick={() => send({ type: 'prep', amount: 25 })}>
-              <MarketArt motif="raw" />
+              <img src="/kitchen/dough.webp" width="42" height="38" alt="" />
               <span><strong>{game.prepped === 100 ? '반죽 준비 완료' : '다음 반죽 준비'}</strong>
               <small>{game.prepped ? `준비 ${game.prepped}%` : '굽는 동안 네 번 톡톡'}</small></span>
             </button>

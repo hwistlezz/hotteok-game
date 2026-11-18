@@ -3,7 +3,7 @@ import {
   PRESS_IDEAL_END, PRESS_MIN, STARTING_HEARTS, UNIT_PRICE, type Receipt,
 } from './rules'
 
-export type Phase = 'knead' | 'press' | 'front' | 'back' | 'serve' | 'burnt'
+export type Phase = 'knead' | 'press' | 'front' | 'back' | 'serve' | 'burnt' | 'redo'
 export type GameState = {
   practice: boolean
   phase: Phase
@@ -48,6 +48,24 @@ export function cookTarget(orderIndex: number) {
   return doneness[orderIndex % doneness.length]
 }
 
+const shifts = [
+  { label: '첫 영업', required: 2, window: 750, grace: 1_000, pressEnd: PRESS_IDEAL_END },
+  { label: '손님 몰림', required: 2, window: 520, grace: 620, pressEnd: 1_100 },
+  { label: '피크 타임', required: 3, window: 320, grace: 420, pressEnd: 1_020 },
+]
+
+export function cookingRules(game: GameState) {
+  const taste = cookTarget(game.receipts.length)
+  if (game.practice) return { ...taste, shift: '연습', required: 0, pressEnd: PRESS_IDEAL_END, burn: COOK_BURN }
+  const shift = shifts[Math.min(game.servedOrders, shifts.length - 1)]
+  // Alternate the hot spot by batch and side. Both the gauge and the judge use this clock.
+  const offset = game.servedOrders > 0 && (game.placed + Number(game.phase === 'back')) % 2 === 1 ? 250 : 0
+  const start = taste.start + offset
+  const end = start + Math.min(shift.window, taste.end - taste.start)
+  return { label: taste.label, start, end, shift: shift.label, required: shift.required,
+    pressEnd: shift.pressEnd, burn: Math.min(COOK_BURN, end + shift.grace) }
+}
+
 export function doughBonus(stars: number, prepped: number) {
   return stars === 3 ? Math.min(25, 100 - prepped) : 0
 }
@@ -78,7 +96,8 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
   if (!game.practice && action.now - game.orderAt >= limit) {
     return expireOrder(game, action.now, limit)
   }
-  if ((game.phase === 'front' || game.phase === 'back') && elapsed >= COOK_BURN) {
+  const rules = cookingRules(game)
+  if ((game.phase === 'front' || game.phase === 'back') && elapsed >= rules.burn) {
     // Apply the burn before interpreting a late flip or removal.
     return { ...game, phase: 'burnt', stars: 0, streak: 0 }
   }
@@ -99,18 +118,21 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
       if (game.phase !== 'press' || game.pressAt === null) return game
       const duration = action.now - game.pressAt
       if (duration < PRESS_MIN) return { ...game, pressAt: null }
-      const leaked = duration > PRESS_IDEAL_END
+      const leaked = duration > rules.pressEnd
       return { ...game, phase: 'front', since: action.now, pressAt: null, leaked, stars: leaked ? 0 : 1 }
     }
     case 'cancel-press':
       return game.pressAt === null ? game : { ...game, pressAt: null }
     case 'cook': {
       if ((game.phase !== 'front' && game.phase !== 'back') || elapsed < COOK_MIN) return game
-      const target = cookTarget(game.receipts.length)
-      const perfect = elapsed >= target.start && elapsed <= target.end
+      const perfect = elapsed >= rules.start && elapsed <= rules.end
+      const stars = game.stars + Number(perfect)
+      if (game.phase === 'back' && stars < rules.required) {
+        return { ...game, phase: 'redo', since: action.now, stars, streak: 0 }
+      }
       return {
         ...game, phase: game.phase === 'front' ? 'back' : 'serve',
-        since: action.now, stars: game.stars + Number(perfect),
+        since: action.now, stars,
       }
     }
     case 'serve': {
@@ -129,7 +151,8 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
       }
     }
     case 'discard':
-      return game.phase === 'burnt' ? { ...game, ...nextDough(game.prepped), lastStars: 0 } : game
+      return game.phase === 'burnt' || game.phase === 'redo'
+        ? { ...game, ...nextDough(game.prepped), lastStars: game.stars } : game
     case 'tick':
       return game
   }
