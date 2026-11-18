@@ -48,7 +48,13 @@ test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', asy
   await page.getByRole('button', { name: '일시정지' }).tap()
   await page.clock.fastForward(22_000)
   await expect(page.getByRole('dialog', { name: '일시정지' })).toBeVisible()
-  await page.getByRole('button', { name: '재개' }).tap()
+  const resume = page.getByRole('button', { name: '재개' })
+  for (const key of ['Tab', 'Tab', 'Shift+Tab']) {
+    await page.keyboard.press(key)
+    await expect(resume).toBeFocused()
+  }
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: '반죽 젓기' })).toBeFocused()
   await prepareWithKeyboard(page)
   await holdWithTouch(page)
   await expect(page.getByRole('heading', { name: '앞면 굽기' })).toBeVisible()
@@ -278,6 +284,15 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await prepareWithKeyboard(page)
   await page.getByRole('button', { name: '누르개 길게 누르기' }).focus()
   await page.keyboard.down('Space')
+  await page.clock.runFor(900)
+  await page.keyboard.up('Space')
+  await page.clock.runFor(950)
+  await page.getByRole('button', { name: '뒤집기' }).tap()
+  await expect(page.getByRole('button', { name: '다시 굽기' })).toHaveAccessibleDescription(/너무 일찍 들어 반죽이 찢어졌어요/)
+  await page.getByRole('button', { name: '다시 굽기' }).tap()
+  await page.getByRole('button', { name: '반죽 옮기기' }).press('Enter')
+  await page.getByRole('button', { name: '누르개 길게 누르기' }).focus()
+  await page.keyboard.down('Space')
   await page.clock.runFor(1_350)
   await page.keyboard.up('Space')
   await page.clock.fastForward(2_990)
@@ -285,6 +300,7 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await page.clock.fastForward(2_990)
   await page.getByRole('button', { name: '꺼내기' }).tap()
   await expect(page.getByRole('heading', { name: '다시 구워주세요' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 굽기' })).toHaveAccessibleDescription(/별 0개 · 2개가 필요해요/)
   await expect(page.getByRole('button', { name: '호떡 제출' })).toHaveCount(0)
   await page.getByRole('button', { name: '다시 굽기' }).tap()
   await expect(page.getByRole('button',{name:'반죽 옮기기'})).toBeEnabled()
@@ -294,6 +310,7 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
 
 for (const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]) {
   test(`주문과 조리대가 화면 안에 배치된다 (${width}×${height})`, async ({ page }) => {
+    await page.clock.install()
     await page.setViewportSize({ width,height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/')
@@ -307,6 +324,19 @@ for (const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]) {
     expect(stove!.y+stove!.height).toBeLessThanOrEqual(height)
     if (width>=800) expect(order!.x+order!.width).toBeLessThan(stove!.x)
     else expect(order!.y+order!.height).toBeLessThan(stove!.y)
+    await prepareWithKeyboard(page)
+    async function expectGaugeOnScreen(name: string) {
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const gauge = page.getByRole('progressbar', { name })
+      await expect(gauge).toBeInViewport({ ratio: 1 })
+    }
+    await expectGaugeOnScreen('누르는 힘')
+    await holdWithTouch(page)
+    await expectGaugeOnScreen('굽기 정도')
+    await page.clock.fastForward(2_600)
+    await page.getByRole('button', { name: '뒤집기' }).tap()
+    await expect(page.getByRole('heading', { name: '뒷면 굽기' })).toBeVisible()
+    await expectGaugeOnScreen('굽기 정도')
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
   })
 }

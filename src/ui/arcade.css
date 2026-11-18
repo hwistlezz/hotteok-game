@@ -126,6 +126,15 @@
   .play-area .order-rail {display:block;} .guest-window{height:104px;} .ticket{padding:5px;}
   .cooktop {height:clamp(108px,32svh,158px);} .order-slots{margin:3px 0;}
 }
+@media (max-width:740px) and (max-height:680px) and (orientation:portrait) {
+  .game-shell:has(.play-area) .masthead {display:none;}
+  .play-area {padding-block:6px;gap:6px;}
+  .guest-window {height:76px;}
+  .process {margin-bottom:4px;}
+  .hint {margin-block:3px 5px;}
+  .cooktop {height:clamp(120px,calc(100svh - 434px),250px);}
+  .griddle-input .action-label {padding-block:4px;}
+}
 @media(max-width:380px){
   .topbar {gap:3px;padding-inline:5px;}
   .topbar .quiet {font-size:.78rem;padding-inline:5px;}

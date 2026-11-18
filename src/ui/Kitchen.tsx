@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type RefObject, type PointerEvent } from 'react'
 import { contactSurface, cookingRules, stirCue, type GameAction, type GameState, type Phase } from '../game/game'
 import { COOK_MIN } from '../game/rules'
 import { Cooktop } from './Cooktop'
@@ -7,7 +7,7 @@ const steps: Record<Phase, [title:string,hint:string,button:string,index:number]
   knead:['반죽 젓기','화살표 방향으로 그릇을 저어요. 네 바퀴마다 다음 지시가 나와요.','반죽 젓기',0],
   portion:['한 덩이 떼기','왼쪽 접시의 반죽 한 덩이를 오른쪽 불판으로 옮겨요.','반죽 옮기기',1],
   press:['납작하게 꾹','길게 눌렀다가 눈금 안에서 놓아요.','누르개 길게 누르기',2],
-  front:['앞면 굽기','밑면이 익으면 가장자리에 색이 올라와요. 눈금에서 뒤집어요.','뒤집기',3],
+  front:['앞면 굽기','가장자리를 보고 눈금에 맞춰 뒤집어요.','뒤집기',3],
   back:['뒷면 굽기','반대쪽도 눈금 안에 익으면 한 장을 꺼내요.','꺼내기',3],
   serve:['한 장 완성!','손님이나 봉투를 눌러 한 장을 건네요.','호떡 제출',4],
   redo:['다시 구워주세요','같은 손님에게 낼 새 반죽을 한 덩이 떼요.','다시 굽기',3],
@@ -27,8 +27,8 @@ function inside(rect: DOMRect | undefined, point: Point) {
   return rect && point.x>=rect.left && point.x<=rect.right && point.y>=rect.top && point.y<=rect.bottom
 }
 
-export function Kitchen({game,now,enabled,send}:{
-  game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
+export function Kitchen({buttonRef,game,now,enabled,send}:{
+  buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
 }) {
   const orbit=useRef<HTMLSpanElement>(null), source=useRef<HTMLSpanElement>(null), target=useRef<HTMLSpanElement>(null)
   const gesture=useRef<Gesture|null>(null)
@@ -38,6 +38,9 @@ export function Kitchen({game,now,enabled,send}:{
   const {phase}=game
   const [title,hint,button,index]=steps[phase]
   const rules=cookingRules(game)
+  let instruction = hint
+  if (game.redoReason === 'early-lift') instruction = '너무 일찍 들어 반죽이 찢어졌어요. 다음에는 굽기 눈금에 맞춰 들어요.'
+  if (game.redoReason === 'low-rating') instruction = `별 ${game.stars}개 · ${rules.required}개가 필요해요. 새 반죽으로 다시 구워요.`
   const cue=stirCue(game)
   const turnLabel=cue.direction===1?'↻ 시계 방향':'↺ 반시계 방향'
   const cooking=phase==='front'||phase==='back'
@@ -108,11 +111,11 @@ export function Kitchen({game,now,enabled,send}:{
     <ol className="process" aria-label="조리 순서">{['젓기','떼기','누르기','굽기','건네기'].map((s,i)=>
       <li key={s} aria-current={i===index?'step':undefined} data-done={i<index}>{s}</li>)}</ol>
     <h1 id="phase-title">{title}</h1>
-    <p className="hint" id="phase-hint">{phase==='redo'?`별 ${game.stars}개 · ${rules.required}개가 필요해요. 새 반죽으로 다시 구워요.`:hint}</p>
+    <p className="hint" id="phase-hint">{instruction}</p>
     {phase==='knead'&&<span id="stir-instruction" role="status" aria-atomic="true" className="stir-instruction">
       {cue.stage+1}번째 지시, {cue.direction===1?'시계':'반시계'} 방향
     </span>}
-    <button className={'griddle-input stage--'+phase} type="button" disabled={!enabled}
+    <button ref={buttonRef} className={'griddle-input stage--'+phase} type="button" disabled={!enabled}
       data-direction={phase==='knead'?cue.direction:undefined}
       aria-label={button} aria-describedby={phase==='knead'?'phase-hint stir-instruction':'phase-hint'} onPointerDown={down} onPointerMove={move} onPointerUp={up}
       onPointerCancel={cancel} onLostPointerCapture={e=>{if(gesture.current?.id===e.pointerId)cancel()}}

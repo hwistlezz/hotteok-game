@@ -16,6 +16,7 @@ export type GameState = {
   bestStreak: number
   since: number
   pressAt: number | null
+  redoReason: null | 'early-lift' | 'low-rating'
   leaked: boolean
   stars: number
   lastStars: number | null
@@ -40,6 +41,7 @@ const freshDough = {
   exposed: { toast: 0, char: 0 },
   pressAt: null,
   stars: 0,
+  redoReason: null,
   leaked: false,
   folded: false,
 }
@@ -160,12 +162,12 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
       if (elapsed < COOK_MIN) {
         // A committed early lift tears the pancake. Ignore a release from the preceding gesture.
         return !game.practice && elapsed >= 450
-          ? { ...game, exposed, phase: 'redo', stars: 0, streak: 0, since: action.now } : game
+          ? { ...game, exposed, phase: 'redo', redoReason: 'early-lift', stars: 0, streak: 0, since: action.now } : game
       }
       const perfect = elapsed >= rules.start && elapsed <= rules.end
       const stars = game.stars + Number(perfect)
       if (game.phase === 'back' && stars < rules.required) {
-        return { ...game, exposed, phase: 'redo', since: action.now, stars, streak: 0 }
+        return { ...game, exposed, phase: 'redo', redoReason: 'low-rating', since: action.now, stars, streak: 0 }
       }
       return {
         ...game, exposed, phase: game.phase === 'front' ? 'back' : 'serve',

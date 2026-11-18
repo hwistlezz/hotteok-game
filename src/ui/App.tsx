@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { cookingRules, newGame, reduceGame } from '../game/game'
 import { normalizeNickname, orderLimit, orderQuantity, UNIT_PRICE } from '../game/rules'
 import { beginRound, bestKey, fetchLeaderboard, readBest, registerScore, saveBest, won } from './api'
@@ -121,6 +121,24 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
   })
   const [registration, setRegistration] = useState<'idle' | 'sending' | 'saved' | 'error'>('idle')
   const clock = useRef({ elapsed: 0, anchor: null as number | null })
+
+  const pauseDialog = useRef<HTMLDialogElement>(null)
+  const cookingButton = useRef<HTMLButtonElement>(null)
+
+  useLayoutEffect(() => {
+    const dialog = pauseDialog.current
+    if (paused && dialog && !dialog.open) dialog.showModal()
+    else if (!paused && dialog?.open) {
+      dialog.close()
+      cookingButton.current?.focus({ preventScroll: true })
+    }
+  }, [paused])
+
+  function resume() {
+    if (document.hidden) return
+    clock.current.anchor = performance.now()
+    setPaused(false)
+  }
 
   const readTime = useCallback(() => {
     const { elapsed, anchor } = clock.current
@@ -283,19 +301,13 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
-        {paused && (
-          <section className="pause" role="dialog" aria-modal="true" aria-label="일시정지">
-            <div>
-              <h2>잠깐 쉬는 중</h2>
-              <button type="button" autoFocus className="primary" onClick={() => {
-                if (document.hidden) return
-                clock.current.anchor = performance.now()
-                setPaused(false)
-              }}>재개</button>
-            </div>
-          </section>
-        )}
+        <Kitchen buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
+          onCancel={event => { event.preventDefault(); resume() }}
+          onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
+          <h2 id="pause-title">일시정지</h2>
+          <button type="button" className="primary" onClick={resume}>재개</button>
+        </dialog>
       </div>
     </>
   )

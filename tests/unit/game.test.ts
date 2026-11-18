@@ -43,8 +43,8 @@ describe('조리 게임', () => {
     const game: GameState = { ...newGame(false), phase:'front', placed:1, since:200 }
     expect(reduceGame(game, {type:'cook',now:649})).toBe(game)
     const torn=reduceGame(game, {type:'cook',now:650})
-    expect(torn).toMatchObject({phase:'redo',score:0,placed:1})
-    expect(reduceGame(torn,{type:'discard',now:800})).toMatchObject({phase:'portion',placed:1,hearts:3})
+    expect(torn).toMatchObject({phase:'redo',redoReason:'early-lift',score:0,placed:1})
+    expect(reduceGame(torn,{type:'discard',now:800})).toMatchObject({phase:'portion',redoReason:null,placed:1,hearts:3})
   })
   it('피크 타임에서 눈금을 1ms 놓친 호떡은 납품할 수 없고 예약 반죽으로 다시 굽는다', () => {
     const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 2 }
@@ -54,6 +54,7 @@ describe('조리 게임', () => {
       expect(reduceGame(back, { type: 'cook', now })).toMatchObject({ phase: 'serve', stars: 3 })
     }
     const rejected = reduceGame(back, { type: 'cook', now: end + 1 })
+    expect(rejected.redoReason).toBe('low-rating')
     expect(reduceGame(rejected, { type: 'serve', now: end + 2 })).toBe(rejected)
     expect(reduceGame(rejected, { type: 'discard', now: end + 3 })).toMatchObject({
       phase: 'portion', turns: 12, prepped: 2, score: 0, placed: 0, hearts: 3, orderAt: 0,
