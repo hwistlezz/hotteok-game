@@ -41,6 +41,55 @@ async function holdWithTouch(page: Page, duration = 900) {
   await client.detach()
 }
 
+test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유지한다', async ({page}) => {
+  await page.clock.install()
+  await page.goto('/')
+  await page.getByRole('button',{name:'조작 방법'}).tap()
+  const hint = page.locator('.quality')
+  await expect(hint).toContainText('그릇 가장자리')
+  const bowl = page.getByRole('button',{name:'반죽 젓기'})
+  await expect(bowl).toBeEnabled()
+  await bowl.press('ArrowRight')
+  await expect(hint).toContainText('← 반시계')
+  await bowl.tap()
+  await expect(hint).toContainText('그릇 가장자리')
+  await prepareWithKeyboard(page)
+  await holdWithTouch(page,400)
+  await expect(page.getByText('조금 더 눌러요')).toBeVisible()
+  const gauge = page.getByRole('progressbar',{name:'누르는 힘'})
+  expect(Number(await gauge.getAttribute('aria-valuenow'))).toBeGreaterThan(15)
+  await page.clock.fastForward(1000)
+  await expect(gauge).toHaveAttribute('aria-valuenow','0')
+  await holdWithTouch(page)
+  await expect(page.getByRole('heading',{name:'앞면 굽기'})).toBeVisible()
+})
+
+test('매출 저장 확인은 서버의 성공 응답 뒤에만 잠시 표시된다', async ({page}) => {
+  await page.clock.install()
+  await page.route('**/api/rounds', r => r.fulfill({json:{id:'preview'}}))
+  let attempts = 0
+  let release!: () => void
+  const pending = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/rounds/preview/score', async r => {
+    if (++attempts === 1) return r.fulfill({status:503})
+    await pending
+    await r.fulfill({json:{score:2000}})
+  })
+  await page.goto('/')
+  await page.getByLabel('닉네임').fill('저장손님')
+  await page.getByRole('button',{name:'게임 시작'}).tap()
+  await page.getByRole('button',{name:'건너뛰기'}).tap()
+  await cookOne(page)
+  const status = page.locator('.rank-save-status')
+  await expect(status).toHaveText('저장 재시도 중')
+  await page.clock.fastForward(5001)
+  await expect(status).toHaveText('저장 중…')
+  release()
+  await expect(status).toHaveText('✓ 2,000원 저장됨')
+  await page.clock.fastForward(2300)
+  await expect(status).toBeEmpty()
+})
+
 test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', async ({ page }) => {
   await page.clock.install()
   await page.goto('/')

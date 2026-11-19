@@ -15,6 +15,7 @@ export type GameState = {
   streak: number
   bestStreak: number
   since: number
+  shortPress: { duration: number; until: number } | null
   pressAt: number | null
   redoReason: null | 'early-lift' | 'low-rating'
   leaked: boolean
@@ -39,6 +40,7 @@ const freshDough = {
   phase: 'knead' as const,
   turns: 0,
   exposed: { toast: 0, char: 0 },
+  shortPress: null,
   pressAt: null,
   stars: 0,
   redoReason: null,
@@ -146,11 +148,11 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
       return game.phase === 'portion' ? { ...game, phase: 'press', since: action.now } : game
     case 'press-start':
       return game.phase === 'press' && game.pressAt === null
-        ? { ...game, pressAt: action.now } : game
+        ? { ...game, pressAt: action.now, shortPress: null } : game
     case 'press-release': {
       if (game.phase !== 'press' || game.pressAt === null) return game
       const duration = action.now - game.pressAt
-      if (duration < PRESS_MIN) return { ...game, pressAt: null }
+      if (duration < PRESS_MIN) return { ...game, pressAt: null, shortPress: { duration, until: action.now + 900 } }
       const leaked = duration > rules.pressEnd
       return { ...game, phase: 'front', since: action.now, pressAt: null, leaked, stars: Number(!leaked && duration >= rules.pressStart) }
     }

@@ -12,6 +12,7 @@ import { KitchenScene } from './KitchenScene'
 type Session = { seed: number; key: number; nickname: string | null; practice: boolean }
 
 export function App() {
+  const [keyboard, setKeyboard] = useState(() => !window.matchMedia('(pointer: coarse)').matches)
   const [input, setInput] = useState('')
   const [inputError, setInputError] = useState(false)
   const [best, setBest] = useState(readBest)
@@ -41,14 +42,15 @@ export function App() {
   }, [])
 
   return (
-    <main className="game-shell">
+    <main className="game-shell" onPointerDownCapture={() => setKeyboard(false)}
+      onKeyDownCapture={event => { if (['Tab','Enter',' ','ArrowRight','ArrowLeft'].includes(event.key)) setKeyboard(true) }}>
       <header className="masthead">
         <span className="brand"><MarketArt motif="pancake" />달밤오락실</span>
         <span className="marquee-rule" aria-hidden="true" />
         <span className="open-sign">{session ? '조리 중' : '영업 중'}</span>
       </header>
       {session ? (
-        <Play
+        <Play keyboard={keyboard}
           key={session.key}
           session={session}
           best={best}
@@ -107,8 +109,8 @@ export function App() {
   )
 }
 
-function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
-  session: Session; best: number; onBest: (score: number) => void
+function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExit }: {
+  keyboard: boolean; session: Session; best: number; onBest: (score: number) => void
   onHome: () => void; onReplay: () => void; onPracticeExit: () => void
 }) {
   const [game, dispatch] = useReducer(reduceGame, session, ({ practice, seed }) => newGame(practice, seed))
@@ -207,6 +209,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
     dispatch({ ...action, now: timestamp })
   }
 
+  const [saveNotice, setSaveNotice] = useState<{score: number; until: number} | null>(null)
   const acknowledged = useRef<unknown>(null)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
@@ -222,7 +225,12 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
     let retryTimer: number | undefined
     setRegistration('sending')
     void registerScore(round.id, receipts, !game.finished).then(
-      () => { if (current) { acknowledged.current = receipts.at(-1); setRegistration('saved') } },
+      ({ score }) => {
+        if (!current) return
+        acknowledged.current = receipts.at(-1)
+        setSaveNotice({score, until: readTime() + 2200})
+        setRegistration('saved')
+      },
       () => {
         if (!current) return
         setRegistration('error')
@@ -230,11 +238,19 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
       },
     )
     return () => { current = false; window.clearTimeout(retryTimer) }
-  }, [round.id, game.receipts, game.finished, retry])
+  }, [round.id, game.receipts, game.finished, retry, readTime])
 
   useLayoutEffect(() => {
     if (ready && !paused && !game.finished) cookingButton.current?.focus({ preventScroll: true })
   }, [ready, paused, game.finished, game.receipts.length])
+
+  let saveStatus = ''
+  if (!round.loading && !round.id) saveStatus = '이번 판 랭킹 연결 안 됨'
+  else if (registration === 'error') saveStatus = '저장 재시도 중'
+  else if (registration === 'sending') saveStatus = '저장 중…'
+  else if (registration === 'saved' && saveNotice && now < saveNotice.until) {
+    saveStatus = `✓ ${won(saveNotice.score)} 저장됨`
+  }
 
   if (ranks) return <Leaderboard onBack={() => setRanks(false)} />
   if (game.finished) {
@@ -285,7 +301,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
             {session.practice ? <strong>연습 주문</strong> : <>
               <span className="hearts" aria-label={`하트 ${game.hearts}개`}>
                 <span aria-hidden="true">{'♥'.repeat(game.hearts)}{'♡'.repeat(3-game.hearts)}</span>
-              </span><strong aria-label="매출">{won(game.score)}</strong></>}
+              </span><small className="rank-save-status" role="status">{saveStatus}</small><strong aria-label="매출">{won(game.score)}</strong></>}
             {session.practice && <button type="button" className="quiet" onClick={onPracticeExit}>건너뛰기</button>}
           </div>
           <CounterGuest index={game.receipts.length} delivery={game.deliveredAt!==null && now-game.deliveredAt<750 ? game.deliveredAt : null}
@@ -316,7 +332,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <Kitchen keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
           onCancel={event => { event.preventDefault(); resume() }}
           onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
