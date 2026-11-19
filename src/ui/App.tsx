@@ -91,7 +91,7 @@ export function App() {
               />
               <p className="field-note" id="nickname-note" role={inputError ? 'alert' : undefined}>
                 {inputError ? '글자, 숫자, 공백, -, _를 2~16자로 입력해 주세요.'
-                  : '주문을 완료하면 닉네임과 매출이 랭킹에 자동 공개돼요.'}
+                  : '주문을 완료하거나 게임이 끝나면 닉네임과 매출이 랭킹에 자동 공개돼요.'}
               </p>
               <button className="primary" type="submit">게임 시작 <span aria-hidden="true">▶</span></button>
             </form>
