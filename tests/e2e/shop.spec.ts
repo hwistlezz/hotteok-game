@@ -115,11 +115,10 @@ test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 �
   expect(tieRun.status()).toBe(201)
   await cookOne(page)
   await expect(page.getByLabel('매출')).toHaveText('2,000원')
-  for (const duration of [28_050, 28_050, 38_050]) {
-    await page.clock.fastForward(duration)
-  }
-  await expect(page.getByRole('heading', { name: '오늘 장사 끝!' })).toBeVisible()
-
+  await expect.poll(async () => (await (await request.get('/api/leaderboard')).json()).entries).toContainEqual({ nickname, score: 2_000 })
+  const nextBowl = page.getByRole('button', { name: '반죽 젓기' })
+  await expect(nextBowl).toBeFocused()
+  await page.keyboard.press(await nextBowl.getAttribute('data-direction') === '1' ? 'ArrowRight' : 'ArrowLeft')
   // The browser clock is simulated. The server still checks that a real round could have elapsed.
   let attempts = 0
   await page.route('**/api/rounds/*/score', async (route) => {
@@ -134,7 +133,12 @@ test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 �
     expect(await first.json()).toEqual(await second.json())
     await route.fulfill({ response: first })
   })
-  await page.getByRole('button', { name: '랭킹에 등록' }).tap()
+  for (const duration of [28_050, 28_050, 38_050]) {
+    await page.clock.fastForward(duration)
+  }
+  await expect(page.getByRole('heading', { name: '오늘 장사 끝!' })).toBeVisible()
+
+
   await expect(page.getByText('랭킹 등록에 실패했어요.')).toBeVisible()
   await new Promise((resolve) => setTimeout(resolve, Math.max(0, 103_000 - (Date.now() - startedAt))))
   await page.getByRole('button', { name: '랭킹 등록 다시 시도' }).tap()
@@ -148,7 +152,8 @@ test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 �
   expect(tie.ok()).toBe(true)
   const ranking = await request.get('/api/leaderboard')
   expect(ranking.ok()).toBe(true)
-  expect((await ranking.json()).entries).toEqual([{ nickname, score: 2_000 }, { nickname: tieName, score: 2_000 }])
+  const entries: {nickname: string; score: number}[] = (await ranking.json()).entries
+  expect(entries.filter(entry => entry.nickname === nickname || entry.nickname === tieName)).toEqual([{ nickname, score: 2_000 }, { nickname: tieName, score: 2_000 }])
   await page.getByRole('button', { name: '랭킹 보기' }).tap()
   await expect(page.getByRole('listitem').filter({ hasText: nickname })).toBeVisible()
   await page.getByRole('button', { name: '돌아가기' }).tap()
@@ -306,6 +311,17 @@ test('별이 부족한 호떡은 포장할 수 없고 같은 손님의 주문을
   await expect(page.getByRole('button',{name:'반죽 옮기기'})).toBeEnabled()
   await expect(page.getByLabel('매출')).toHaveText('0원')
   await expect(page.getByLabel('하트 3개')).toBeVisible()
+})
+
+test('모바일 브라우저 높이가 경계를 넘어도 조리대가 갑자기 줄지 않는다', async ({page}) => {
+  await page.setViewportSize({width:375,height:680})
+  await page.goto('/')
+  await page.getByRole('button',{name:'조작 방법'}).tap()
+  const cooktop = page.locator('.cooktop')
+  const before = await cooktop.boundingBox()
+  await page.setViewportSize({width:375,height:681})
+  const after = await cooktop.boundingBox()
+  expect(Math.abs(after!.height - before!.height)).toBeLessThanOrEqual(1)
 })
 
 for (const [width,height] of [[320,568],[360,681],[375,700],[390,740],[390,844],[844,390],[1280,800]]) {

@@ -91,7 +91,7 @@ export function App() {
               />
               <p className="field-note" id="nickname-note" role={inputError ? 'alert' : undefined}>
                 {inputError ? '글자, 숫자, 공백, -, _를 2~16자로 입력해 주세요.'
-                  : '랭킹에 등록하면 닉네임이 공개돼요.'}
+                  : '주문을 완료하거나 게임이 끝나면 닉네임과 매출이 랭킹에 자동 공개돼요.'}
               </p>
               <button className="primary" type="submit">게임 시작 <span aria-hidden="true">▶</span></button>
             </form>
@@ -207,16 +207,34 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
     dispatch({ ...action, now: timestamp })
   }
 
-  async function saveScore() {
-    if (!round.id || registration === 'sending' || registration === 'saved') return
-    setRegistration('sending')
-    try {
-      await registerScore(round.id, game.receipts)
-      setRegistration('saved')
-    } catch {
-      setRegistration('error')
+  const acknowledged = useRef<unknown>(null)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    if (!round.id) return
+    let receipts = game.receipts
+    if (!game.finished) {
+      let length = receipts.length
+      while (length && receipts[length-1].outcome !== 'served') length--
+      if (!length || receipts[length-1] === acknowledged.current) return
+      receipts = receipts.slice(0, length)
     }
-  }
+    let current = true
+    let retryTimer: number | undefined
+    setRegistration('sending')
+    void registerScore(round.id, receipts, !game.finished).then(
+      () => { if (current) { acknowledged.current = receipts.at(-1); setRegistration('saved') } },
+      () => {
+        if (!current) return
+        setRegistration('error')
+        if (!game.finished) retryTimer = window.setTimeout(() => setRetry(n => n + 1), 5000)
+      },
+    )
+    return () => { current = false; window.clearTimeout(retryTimer) }
+  }, [round.id, game.receipts, game.finished, retry])
+
+  useLayoutEffect(() => {
+    if (ready && !paused && !game.finished) cookingButton.current?.focus({ preventScroll: true })
+  }, [ready, paused, game.finished, game.receipts.length])
 
   if (ranks) return <Leaderboard onBack={() => setRanks(false)} />
   if (game.finished) {
@@ -240,11 +258,8 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
         }>{session.practice ? session.nickname ? '실전 시작' : '처음으로 돌아가기' : '다시 시작'}</button>
         {!session.practice && (
           <>
-            {round.id && registration !== 'saved' && (
-              <button type="button" className="secondary" disabled={registration === 'sending'} onClick={() => void saveScore()}>
-                {registration === 'sending' ? '등록 중…' : registration === 'error' ? '랭킹 등록 다시 시도' : '랭킹에 등록'}
-              </button>
-            )}
+            {registration === 'sending' && <p role="status">랭킹 저장 중…</p>}
+            {registration === 'error' && <button type="button" className="secondary" onClick={() => setRetry(n => n + 1)}>랭킹 등록 다시 시도</button>}
             {round.loading && <p role="status">랭킹 연결 확인 중…</p>}
             {!round.loading && !round.id && <p role="status">랭킹 연결을 시작하지 못했어요. 이번 매출은 결과에서 볼 수 있어요.</p>}
             {registration === 'error' && <p role="status">랭킹 등록에 실패했어요.</p>}

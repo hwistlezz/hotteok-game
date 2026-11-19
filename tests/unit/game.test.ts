@@ -166,6 +166,12 @@ describe('랭킹 검증', () => {
     })),
   ]
 
+  it('진행 중 매출과 확정된 경기의 등록 조건을 구분한다', () => {
+    expect(scoreRound(receipts.slice(0,1), 6000, true)).toEqual({score:2000, servedOrders:1})
+    expect(scoreRound([], 6000, true)).toBeNull()
+    expect(scoreRound(receipts, 100000, true)).toBeNull()
+    expect(scoreRound(receipts.slice(0,1), 6000)).toBeNull()
+  })
   it('완료된 주문 수량으로만 서버 매출을 계산한다', () => {
     expect(scoreReceipts(receipts, 100_000)).toEqual({ score: 2_000, servedOrders: 1 })
   })

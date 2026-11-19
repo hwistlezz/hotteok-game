@@ -2,6 +2,7 @@ import { ROUND_REQUEST_TIMEOUT_MS, type Receipt } from '../game/rules'
 
 async function request<T>(path: string, payload?: object): Promise<T> {
   const response = await fetch(path, {
+    keepalive: Boolean(payload && JSON.stringify(payload).length < 16000),
     signal: AbortSignal.timeout(ROUND_REQUEST_TIMEOUT_MS),
     ...(payload && {
       method: 'POST',
@@ -14,8 +15,8 @@ async function request<T>(path: string, payload?: object): Promise<T> {
 }
 
 export const beginRound = (nickname: string) => request<{ id: string }>('/api/rounds', { nickname })
-export const registerScore = (id: string, receipts: Receipt[]) =>
-  request<{ score: number }>(`/api/rounds/${id}/score`, { receipts })
+export const registerScore = (id: string, receipts: Receipt[], progress = false) =>
+  request<{ score: number }>(`/api/rounds/${id}/score`, { receipts, progress })
 export const fetchLeaderboard = () => request<{ entries: { nickname: string; score: number }[] }>('/api/leaderboard')
 
 export const bestKey = 'hotteok-best'
