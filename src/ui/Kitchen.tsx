@@ -27,8 +27,8 @@ function inside(rect: DOMRect | undefined, point: Point) {
   return rect && point.x>=rect.left && point.x<=rect.right && point.y>=rect.top && point.y<=rect.bottom
 }
 
-export function Kitchen({buttonRef,game,now,enabled,send}:{
-  buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
+export function Kitchen({keyboard,buttonRef,game,now,enabled,send}:{
+  keyboard:boolean;buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
 }) {
   const orbit=useRef<HTMLSpanElement>(null), source=useRef<HTMLSpanElement>(null), target=useRef<HTMLSpanElement>(null)
   const gesture=useRef<Gesture|null>(null)
@@ -50,18 +50,20 @@ export function Kitchen({buttonRef,game,now,enabled,send}:{
   const min=phase==='press'?rules.pressStart:rules.start
   const end=phase==='press'?rules.pressEnd:rules.end
   const timed=cooking||phase==='press'
-  const progress=phase==='knead'?game.turns/12*100:timed?Math.min(100,elapsed/max*100):100
+  const shortPress = phase==='press' && game.shortPress && now<game.shortPress.until ? game.shortPress : null
+  const displayedElapsed = shortPress?.duration ?? elapsed
+  const progress=phase==='knead'?game.turns/12*100:timed?Math.min(100,displayedElapsed/max*100):100
   const text=timed && elapsed>=min ? elapsed>end ? phase==='press'?'시럽이 새요!':'곧 타요!' :
     phase==='press'?'지금 손 떼기!':phase==='front'?'뒤집을 때!':'꺼낼 때!' : ''
-  const notice=text || (now<message.until && message.phase===phase ? message.text:'')
+  const notice=(shortPress?'조금 더 눌러요':'') || text || (now<message.until && message.phase===phase ? message.text:'')
   const contact=phase==='burnt'?{toast:1,char:1}:cooking?contactSurface(elapsed,rules):game.exposed
   const label=phase==='knead'?'젓기':phase==='press'?'누르는 힘':cooking?'굽기 정도':''
   function tip(text:string) {setMessage({phase,text,until:now+950})}
   useEffect(()=>{ if(!enabled){gesture.current=null;setDrag(null)} },[enabled])
 
-  function activate(keyboard:boolean) {
-    if(phase==='knead'){ tip('그릇을 따라 젓거나 ← → 키를 사용해요');return }
-    if(phase==='portion'){ if(keyboard)send({type:'portion'});else tip('반죽을 잡아 불판 위에 놓아요');return }
+  function activate(fromKeyboard:boolean) {
+    if(phase==='knead'){ tip(fromKeyboard?'← → 키로 저어요':'그릇 가장자리를 따라 원을 그려요');return }
+    if(phase==='portion'){ if(fromKeyboard)send({type:'portion'});else tip('반죽을 잡아 불판 위에 놓아요');return }
     if(cooking){if(game.practice && elapsed<COOK_MIN)tip('조금 더 구워요');send({type:'cook'})}
     if(phase==='serve')send({type:'serve'})
     if(phase==='redo'||phase==='burnt')send({type:'discard'})
@@ -148,6 +150,7 @@ export function Kitchen({buttonRef,game,now,enabled,send}:{
       <i className="gauge-fill" style={{transform:`scaleX(${progress/100})`}}/>{timed&&<i className="zone"/>}
       <i className="needle" style={{left:progress+'%'}}/></div></>}
     <div className="quality" role="status">{cooking?`이번 호떡 ★ ${game.stars}/3${game.leaked?' · 시럽이 샜어요':''}`:
-      phase==='knead'?'키보드 · ← 반시계 / → 시계 (½바퀴)':phase==='portion'?'키보드 · Space로 한 덩이 옮기기':''}</div>
+      phase==='knead'?(keyboard?'키보드 · ← 반시계 / → 시계 (½바퀴)':'그릇 가장자리를 따라 원을 그려요'):
+      phase==='portion'?(keyboard?'키보드 · Space로 한 덩이 옮기기':'반죽 한 덩이를 불판으로 끌어 놓아요'):''}</div>
   </section>
 }

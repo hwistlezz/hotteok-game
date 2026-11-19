@@ -12,6 +12,7 @@ import { KitchenScene } from './KitchenScene'
 type Session = { seed: number; key: number; nickname: string | null; practice: boolean }
 
 export function App() {
+  const [keyboard, setKeyboard] = useState(() => !window.matchMedia('(pointer: coarse)').matches)
   const [input, setInput] = useState('')
   const [inputError, setInputError] = useState(false)
   const [best, setBest] = useState(readBest)
@@ -41,14 +42,15 @@ export function App() {
   }, [])
 
   return (
-    <main className="game-shell">
+    <main className="game-shell" onPointerDownCapture={() => setKeyboard(false)}
+      onKeyDownCapture={event => { if (['Tab','Enter',' ','ArrowRight','ArrowLeft'].includes(event.key)) setKeyboard(true) }}>
       <header className="masthead">
         <span className="brand"><MarketArt motif="pancake" />달밤오락실</span>
         <span className="marquee-rule" aria-hidden="true" />
         <span className="open-sign">{session ? '조리 중' : '영업 중'}</span>
       </header>
       {session ? (
-        <Play
+        <Play keyboard={keyboard}
           key={session.key}
           session={session}
           best={best}
@@ -107,8 +109,8 @@ export function App() {
   )
 }
 
-function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
-  session: Session; best: number; onBest: (score: number) => void
+function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExit }: {
+  keyboard: boolean; session: Session; best: number; onBest: (score: number) => void
   onHome: () => void; onReplay: () => void; onPracticeExit: () => void
 }) {
   const [game, dispatch] = useReducer(reduceGame, session, ({ practice, seed }) => newGame(practice, seed))
@@ -316,7 +318,7 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <Kitchen keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
           onCancel={event => { event.preventDefault(); resume() }}
           onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>

@@ -41,6 +41,28 @@ async function holdWithTouch(page: Page, duration = 900) {
   await client.detach()
 }
 
+test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유지한다', async ({page}) => {
+  await page.clock.install()
+  await page.goto('/')
+  await page.getByRole('button',{name:'조작 방법'}).tap()
+  const hint = page.locator('.quality')
+  await expect(hint).toContainText('그릇 가장자리')
+  const bowl = page.getByRole('button',{name:'반죽 젓기'})
+  await bowl.press('ArrowRight')
+  await expect(hint).toContainText('← 반시계')
+  await bowl.tap()
+  await expect(hint).toContainText('그릇 가장자리')
+  await prepareWithKeyboard(page)
+  await holdWithTouch(page,400)
+  await expect(page.getByText('조금 더 눌러요')).toBeVisible()
+  const gauge = page.getByRole('progressbar',{name:'누르는 힘'})
+  expect(Number(await gauge.getAttribute('aria-valuenow'))).toBeGreaterThan(15)
+  await page.clock.fastForward(1000)
+  await expect(gauge).toHaveAttribute('aria-valuenow','0')
+  await holdWithTouch(page)
+  await expect(page.getByRole('heading',{name:'앞면 굽기'})).toBeVisible()
+})
+
 test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', async ({ page }) => {
   await page.clock.install()
   await page.goto('/')
