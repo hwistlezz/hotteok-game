@@ -66,5 +66,8 @@ export function scoreReceipts(receipts: unknown[], availableMs: number, progress
     if (elapsed > availableMs) return null
   }
 
-  return hearts === 0 || (progress && servedOrders > 0 && (receipts.at(-1) as Receipt)?.outcome === 'served') ? { score, servedOrders } : null
+  if (progress) {
+    if (!hearts || !servedOrders || (receipts.at(-1) as Receipt)?.outcome !== 'served') return null
+  } else if (hearts > 0) return null
+  return { score, servedOrders }
 }

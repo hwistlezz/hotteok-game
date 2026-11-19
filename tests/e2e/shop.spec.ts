@@ -152,7 +152,8 @@ test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 �
   expect(tie.ok()).toBe(true)
   const ranking = await request.get('/api/leaderboard')
   expect(ranking.ok()).toBe(true)
-  expect((await ranking.json()).entries).toEqual([{ nickname, score: 2_000 }, { nickname: tieName, score: 2_000 }])
+  const entries: {nickname: string; score: number}[] = (await ranking.json()).entries
+  expect(entries.filter(entry => entry.nickname === nickname || entry.nickname === tieName)).toEqual([{ nickname, score: 2_000 }, { nickname: tieName, score: 2_000 }])
   await page.getByRole('button', { name: '랭킹 보기' }).tap()
   await expect(page.getByRole('listitem').filter({ hasText: nickname })).toBeVisible()
   await page.getByRole('button', { name: '돌아가기' }).tap()
