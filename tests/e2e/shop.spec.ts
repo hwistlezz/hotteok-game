@@ -48,6 +48,7 @@ test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유
   const hint = page.locator('.quality')
   await expect(hint).toContainText('그릇 가장자리')
   const bowl = page.getByRole('button',{name:'반죽 젓기'})
+  await expect(bowl).toBeEnabled()
   await bowl.press('ArrowRight')
   await expect(hint).toContainText('← 반시계')
   await bowl.tap()
