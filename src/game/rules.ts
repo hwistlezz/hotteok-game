@@ -26,12 +26,12 @@ export function normalizeNickname(value: string) {
   return /^[\p{L}\p{N} _-]{2,16}$/u.test(nickname) ? nickname : null
 }
 
-export function scoreRound(receipts: unknown[], serverAgeMs: number) {
+export function scoreRound(receipts: unknown[], serverAgeMs: number, progress = false) {
   // Play starts without waiting for the round request to reach the server.
-  return scoreReceipts(receipts, Math.min(serverAgeMs + ROUND_REQUEST_TIMEOUT_MS, ROUND_EXPIRY_MS))
+  return scoreReceipts(receipts, Math.min(serverAgeMs + ROUND_REQUEST_TIMEOUT_MS, ROUND_EXPIRY_MS), progress)
 }
 
-export function scoreReceipts(receipts: unknown[], availableMs: number) {
+export function scoreReceipts(receipts: unknown[], availableMs: number, progress = false) {
   let hearts = STARTING_HEARTS
   let elapsed = 0
   let score = 0
@@ -66,5 +66,5 @@ export function scoreReceipts(receipts: unknown[], availableMs: number) {
     if (elapsed > availableMs) return null
   }
 
-  return hearts === 0 ? { score, servedOrders } : null
+  return hearts === 0 || (progress && servedOrders > 0 && (receipts.at(-1) as Receipt)?.outcome === 'served') ? { score, servedOrders } : null
 }
