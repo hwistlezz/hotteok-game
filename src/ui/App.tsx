@@ -209,6 +209,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
     dispatch({ ...action, now: timestamp })
   }
 
+  const [saveNotice, setSaveNotice] = useState<{score: number; until: number} | null>(null)
   const acknowledged = useRef<unknown>(null)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
@@ -224,7 +225,12 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
     let retryTimer: number | undefined
     setRegistration('sending')
     void registerScore(round.id, receipts, !game.finished).then(
-      () => { if (current) { acknowledged.current = receipts.at(-1); setRegistration('saved') } },
+      ({ score }) => {
+        if (!current) return
+        acknowledged.current = receipts.at(-1)
+        setSaveNotice({score, until: readTime() + 2200})
+        setRegistration('saved')
+      },
       () => {
         if (!current) return
         setRegistration('error')
@@ -232,11 +238,19 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
       },
     )
     return () => { current = false; window.clearTimeout(retryTimer) }
-  }, [round.id, game.receipts, game.finished, retry])
+  }, [round.id, game.receipts, game.finished, retry, readTime])
 
   useLayoutEffect(() => {
     if (ready && !paused && !game.finished) cookingButton.current?.focus({ preventScroll: true })
   }, [ready, paused, game.finished, game.receipts.length])
+
+  let saveStatus = ''
+  if (!round.loading && !round.id) saveStatus = '이번 판 랭킹 연결 안 됨'
+  else if (registration === 'error') saveStatus = '저장 재시도 중'
+  else if (registration === 'sending') saveStatus = '저장 중…'
+  else if (registration === 'saved' && saveNotice && now < saveNotice.until) {
+    saveStatus = `✓ ${won(saveNotice.score)} 저장됨`
+  }
 
   if (ranks) return <Leaderboard onBack={() => setRanks(false)} />
   if (game.finished) {
@@ -287,7 +301,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
             {session.practice ? <strong>연습 주문</strong> : <>
               <span className="hearts" aria-label={`하트 ${game.hearts}개`}>
                 <span aria-hidden="true">{'♥'.repeat(game.hearts)}{'♡'.repeat(3-game.hearts)}</span>
-              </span><strong aria-label="매출">{won(game.score)}</strong></>}
+              </span><small className="rank-save-status" role="status">{saveStatus}</small><strong aria-label="매출">{won(game.score)}</strong></>}
             {session.practice && <button type="button" className="quiet" onClick={onPracticeExit}>건너뛰기</button>}
           </div>
           <CounterGuest index={game.receipts.length} delivery={game.deliveredAt!==null && now-game.deliveredAt<750 ? game.deliveredAt : null}
