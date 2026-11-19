@@ -63,7 +63,8 @@ async function submitScore(request: Request, db: D1Database, id: string) {
   if (!round) return error('round_not_found', 404)
 
   const age = Date.now() - round.started_at
-  const score = scoreRound(payload.receipts, age, payload.progress === true)
+  const progress = payload.progress === true
+  const score = scoreRound(payload.receipts, age, progress)
   if (!score) return error('invalid_result', 400)
 
   const findScore = db.prepare('SELECT score, served_orders AS servedOrders FROM scores WHERE round_id = ?')
@@ -75,8 +76,11 @@ async function submitScore(request: Request, db: D1Database, id: string) {
 
   // A repeated or concurrent submit can read the winning result without replacing it.
   const result = await db.batch([
-    db.prepare('INSERT INTO scores (round_id, score, served_orders) VALUES (?, ?, ?) ON CONFLICT(round_id) DO UPDATE SET score = excluded.score, served_orders = excluded.served_orders WHERE excluded.score > scores.score')
-      .bind(id, score.score, score.servedOrders),
+    db.prepare(`INSERT INTO scores (round_id, score, served_orders, finalized) VALUES (?, ?, ?, ?)
+      ON CONFLICT(round_id) DO UPDATE SET score = excluded.score,
+      served_orders = excluded.served_orders, finalized = excluded.finalized
+      WHERE scores.finalized = 0 AND excluded.score >= scores.score`)
+      .bind(id, score.score, score.servedOrders, progress ? 0 : 1),
     findScore,
   ])
   return json(result[1].results[0])

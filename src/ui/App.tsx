@@ -207,14 +207,22 @@ function Play({ session, best, onBest, onHome, onReplay, onPracticeExit }: {
     dispatch({ ...action, now: timestamp })
   }
 
+  const acknowledged = useRef<unknown>(null)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
-    if (!round.id || (!game.finished && game.receipts.at(-1)?.outcome !== 'served')) return
+    if (!round.id) return
+    let receipts = game.receipts
+    if (!game.finished) {
+      let length = receipts.length
+      while (length && receipts[length-1].outcome !== 'served') length--
+      if (!length || receipts[length-1] === acknowledged.current) return
+      receipts = receipts.slice(0, length)
+    }
     let current = true
     let retryTimer: number | undefined
     setRegistration('sending')
-    void registerScore(round.id, game.receipts, !game.finished).then(
-      () => { if (current) setRegistration('saved') },
+    void registerScore(round.id, receipts, !game.finished).then(
+      () => { if (current) { acknowledged.current = receipts.at(-1); setRegistration('saved') } },
       () => {
         if (!current) return
         setRegistration('error')
