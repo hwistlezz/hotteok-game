@@ -162,7 +162,10 @@
 
 .station-heading {display:flex;align-items:center;justify-content:space-between;gap:6px;}
 .station-clock {flex:none;border-radius:6px;padding:1px 8px;background:#f6e6bc;color:#513b27;font-size:1.1rem;font-weight:850;font-variant-numeric:tabular-nums;}
-.station-clock::before {content:'남은 시간 ';font-size:.72rem;}
+[data-torn=true] .cake {clip-path:polygon(0 0,100% 0,100% 100%,59% 100%,46% 60%,52% 53%,39% 28%,45% 55%,39% 61%,49% 100%,0 100%);}
+[data-discarded-burnt=true] .hob:after {content:'';position:absolute;left:28%;top:12%;width:44%;height:46%;border-radius:50%;background:radial-gradient(ellipse at 40% 30%,#3d271f,#563524 65%,#ab6630);pointer-events:none;animation:discard-burnt .65s ease-in both;}
+@keyframes discard-burnt {0%{transform:rotateX(85deg);}40%{transform:translateY(-35%) rotate(-12deg);}100%{transform:translate(100%,-45%) rotate(40deg);opacity:0;}}
+@media(prefers-reduced-motion:reduce){[data-discarded-burnt=true] .hob:after{animation:none;inset:0 auto auto 0;width:24%;height:25%;}}
 .station-clock[data-warning=true] {outline:2px solid #895312;background:#ffdb86;}
 .station-clock[data-urgent=true] {color:white;background:#98364a;}
-.station-clock[data-warning=true]::before {content:'마감 임박 ';}
+.station-clock[data-warning=true]::before {content:'마감 임박 ';font-size:.72rem;}

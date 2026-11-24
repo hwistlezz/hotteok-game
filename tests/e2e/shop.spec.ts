@@ -41,7 +41,7 @@ async function holdWithTouch(page: Page, duration = 900) {
   await client.detach()
 }
 
-test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유지한다', async ({page}) => {
+test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 다음 시도까지 유지한다', async ({page}) => {
   await page.clock.install()
   await page.goto('/')
   await page.getByRole('button',{name:'조작 방법'}).tap()
@@ -49,7 +49,9 @@ test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유
   await expect(hint).toContainText('그릇 가장자리')
   const bowl = page.getByRole('button',{name:'반죽 젓기'})
   await expect(bowl).toBeEnabled()
-  await bowl.press('ArrowRight')
+  const clockwise = await bowl.getAttribute('data-direction') === '1'
+  await bowl.press(clockwise ? 'ArrowLeft' : 'ArrowRight')
+  await expect(page.locator('.signal')).toContainText(clockwise ? '↻ 시계' : '↺ 반시계')
   await expect(hint).toContainText('← 반시계')
   await bowl.tap()
   await expect(hint).toContainText('그릇 가장자리')
@@ -59,7 +61,7 @@ test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 잠시 유
   const gauge = page.getByRole('progressbar',{name:'누르는 힘'})
   expect(Number(await gauge.getAttribute('aria-valuenow'))).toBeGreaterThan(15)
   await page.clock.fastForward(1000)
-  await expect(gauge).toHaveAttribute('aria-valuenow','0')
+  expect(Number(await gauge.getAttribute('aria-valuenow'))).toBeGreaterThan(15)
   await holdWithTouch(page)
   await expect(page.getByRole('heading',{name:'앞면 굽기'})).toBeVisible()
 })
@@ -88,6 +90,12 @@ test('매출 저장 확인은 서버의 성공 응답 뒤에만 잠시 표시된
   await expect(status).toHaveText('✓ 2,000원 저장됨')
   await page.clock.fastForward(2300)
   await expect(status).toBeEmpty()
+  await expect(page.getByRole('timer')).toContainText('남은 2장')
+  await page.getByRole('button',{name:'← 처음으로'}).tap()
+  await page.getByRole('button',{name:'나가기'}).tap()
+  await expect(page.locator('.record')).toContainText('2,000원')
+  await page.reload()
+  await expect(page.locator('.record')).toContainText('2,000원')
 })
 
 test('작은 세로 화면에서 손님 대사가 주문대 위에 들어온다', async ({page})=>{

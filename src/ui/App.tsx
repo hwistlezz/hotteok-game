@@ -196,8 +196,8 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
   }, [session.nickname, session.practice])
 
   useEffect(() => {
-    if (game.finished && !session.practice) onBest(game.score)
-  }, [game.finished, game.score, onBest, session.practice])
+    if (game.score > 0 && !session.practice) onBest(game.score)
+  }, [game.score, onBest, session.practice])
 
   const quantity = orderQuantity(game.receipts.length)
   const rules = cookingRules(game)
@@ -344,7 +344,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen seconds={seconds} timeWarning={timeWarning} keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <Kitchen remaining={quantity-game.placed} seconds={seconds} timeWarning={timeWarning} keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
           onCancel={event => { event.preventDefault(); resume() }}
           onKeyDown={event => { if (event.key !== 'Tab') return

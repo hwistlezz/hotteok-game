@@ -11,11 +11,12 @@ export type GameState = {
   turns: number
   exposed: Surface
   prepped: number
+  discardedBurnt: boolean
   folded: boolean
   streak: number
   bestStreak: number
   since: number
-  shortPress: { duration: number; until: number } | null
+  shortPress: { duration: number } | null
   pressAt: number | null
   redoReason: null | 'early-lift' | 'low-rating'
   leaked: boolean
@@ -46,6 +47,7 @@ const freshDough = {
   redoReason: null,
   leaked: false,
   folded: false,
+  discardedBurnt: false,
 }
 
 type Surface = { toast: number; char: number }
@@ -79,7 +81,7 @@ export function cookTarget(orderIndex: number) {
 
 const shifts = [
   { label: '첫 영업', required: 2, window: 320, grace: 650, pressWindow: 180 },
-  { label: '손님 몰림', required: 3, window: 220, grace: 430, pressWindow: 140 },
+  { label: '손님 몰림', required: 2, window: 220, grace: 430, pressWindow: 140 },
   { label: '피크 타임', required: 3, window: 150, grace: 320, pressWindow: 100 },
 ]
 
@@ -153,7 +155,7 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
     case 'press-release': {
       if (game.phase !== 'press' || game.pressAt === null) return game
       const duration = action.now - game.pressAt
-      if (duration < PRESS_MIN) return { ...game, pressAt: null, shortPress: { duration, until: action.now + 900 } }
+      if (duration < PRESS_MIN) return { ...game, pressAt: null, shortPress: { duration } }
       const leaked = duration > rules.pressEnd
       return { ...game, phase: 'front', since: action.now, pressAt: null, leaked, stars: Number(!leaked && duration >= rules.pressStart) }
     }
@@ -194,7 +196,7 @@ export function reduceGame(game: GameState, action: GameAction): GameState {
     }
     case 'discard':
       return game.phase === 'burnt' || game.phase === 'redo'
-        ? { ...game, ...freshDough, phase: 'portion', turns: 12, lastStars: game.stars } : game
+        ? { ...game, ...freshDough, phase: 'portion', turns: 12, discardedBurnt: game.phase === 'burnt', lastStars: game.stars } : game
     case 'tick':
       return game
   }
