@@ -57,7 +57,8 @@ export function stirCue(game: GameState) {
   const mask = 1 + ((hash ^ (hash >>> 16)) >>> 0) % 6
   const stage = Math.min(2, Math.floor(game.turns / 4))
   const direction = mask & (1 << stage) ? 1 : -1
-  return { stage, direction, within: game.turns - 4 * stage }
+  const changed = stage > 0 && ((mask >> stage) & 1) !== ((mask >> (stage-1)) & 1)
+  return { stage, direction, changed, within: game.turns - 4 * stage }
 }
 
 export function contactSurface(elapsed: number, rules: ReturnType<typeof cookingRules>): Surface {

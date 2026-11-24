@@ -116,6 +116,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
   const [game, dispatch] = useReducer(reduceGame, session, ({ practice, seed }) => newGame(practice, seed))
   const [now, setNow] = useState(0)
   const [ready, setReady] = useState(false)
+  const [confirmExit, setConfirmExit] = useState(false)
   const [paused, setPaused] = useState(false)
   const [ranks, setRanks] = useState(false)
   const [round, setRound] = useState<{ id: string | null; loading: boolean }>({
@@ -139,6 +140,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
   function resume() {
     if (document.hidden) return
     clock.current.anchor = performance.now()
+    setConfirmExit(false)
     setPaused(false)
   }
 
@@ -290,7 +292,10 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
   return (
     <>
       <div className="topbar">
-        <button type="button" className="quiet" onClick={onHome}>← 처음으로</button>
+        <button type="button" className="quiet" disabled={!ready} onClick={() => {
+          if (session.practice) onHome()
+          else { setConfirmExit(true); pause() }
+        }}>← 처음으로</button>
         <span>{session.practice ? '연습' : session.nickname}</span>
         <CounterSound phase={game.phase} paused={paused}/>
         <button type="button" className="quiet" disabled={paused || !ready} onClick={pause}>일시정지</button>
@@ -308,7 +313,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
             previous={lastOrder && now-game.orderAt<600 ? lastOrder.outcome : null}
             onServe={ready && !paused && game.phase==='serve' ? ()=>send({type:'serve'}) : undefined}
             mood={seconds<=5 && !session.practice ? 'urgent' : game.phase==='serve' ? 'happy' : 'waiting'}
-            message={session.practice ? '따끈한 호떡 한 장 주세요!' : seconds<=5 ? '제 호떡 곧 나올까요?' :
+            message={session.practice ? '호떡 한 장 주세요!' : seconds<=5 ? '제 호떡 곧 나올까요?' :
               game.phase==='serve' ? '와, 맛있겠다!' : game.placed ? `이제 ${quantity-game.placed}장 남았네요!` :
               `${rules.label} ${quantity}장 주세요!`}/>
           <div className="ticket">
@@ -321,7 +326,10 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
           </div>
           {!session.practice && (<div className="prep-card">
             <button type="button" disabled={!ready || paused || game.folded || game.prepped >= 2 || (game.phase !== 'front' && game.phase !== 'back')}
-              onClick={() => send({ type: 'prep' })}>
+              onClick={() => {
+                send({ type: 'prep' })
+                cookingButton.current?.focus({preventScroll:true})
+              }}>
               <img src="/kitchen/dough.webp" width="42" height="38" alt="" />
               <span><strong>{game.prepped >= 2 ? '밑준비 완료' : '다음 반죽 준비'}</strong>
               <small>{game.prepped ? `다음 주문 ${game.prepped}바퀴 단축` : '한 면마다 한 번'}</small></span>
@@ -335,9 +343,17 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
         <Kitchen keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
           onCancel={event => { event.preventDefault(); resume() }}
-          onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
-          <h2 id="pause-title">일시정지</h2>
-          <button type="button" className="primary" onClick={resume}>재개</button>
+          onKeyDown={event => { if (event.key !== 'Tab') return
+            const buttons = event.currentTarget.querySelectorAll('button')
+            const next = event.shiftKey ? buttons[0] : buttons[buttons.length-1]
+            if (document.activeElement === next) {
+              event.preventDefault()
+              buttons[event.shiftKey ? buttons.length-1 : 0].focus()
+            } }}>
+          <h2 id="pause-title">{confirmExit?'장사를 그만할까요?':'일시정지'}</h2>
+          {confirmExit && <p role="status">{saveStatus || (saveNotice ? `랭킹에 저장된 매출 ${won(saveNotice.score)}` : '진행 중인 주문은 종료돼요.')}</p>}
+          <button type="button" className="primary" onClick={resume}>{confirmExit?'계속 장사하기':'재개'}</button>
+          {confirmExit && <button type="button" className="quiet" onClick={onHome}>나가기</button>}
         </dialog>
       </div>
     </>

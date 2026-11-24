@@ -130,6 +130,9 @@
   .game-shell:has(.play-area) .masthead {display:none;}
   .play-area {padding-block:6px;gap:6px;}
   .guest-window {height:76px;}
+  .guest-bubble {left:37%;right:2%;top:15%;padding:3px 4px;}
+  .guest-bubble small {margin-bottom:0;}
+  .guest-bubble strong {line-height:1.15;}
   .process {margin-bottom:4px;}
   .hint {margin-block:3px 5px;}
   .cooktop {height:clamp(120px,min(100svh - 434px,73vw),338px);}
@@ -151,3 +154,7 @@
 .stir-instruction {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
 
 .rank-save-status {margin-left:auto;text-align:right;font-size:.7rem;color:var(--green);}
+
+.turn-cue {position:absolute;right:4%;top:-14%;z-index:2;border-radius:50%;padding:0 .22em;background:#fff3cf;color:#673d23;font:bold 1.6rem/1.15 system-ui;pointer-events:none;animation:turn-cue .9s both;}
+@keyframes turn-cue {0%,75%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.cooktop .turn-cue{animation:turn-cue .9s steps(1,end) both!important;}}
