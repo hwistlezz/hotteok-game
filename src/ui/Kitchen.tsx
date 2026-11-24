@@ -139,7 +139,7 @@ export function Kitchen({keyboard,buttonRef,game,now,enabled,send}:{
         e.preventDefault()
         if(phase==='press')send({type:'press-release'})
       }}>
-      <Cooktop phase={phase} spoonTurns={cue.within*cue.direction} direction={cue.direction} exposed={game.exposed} contact={contact} pressure={held?Math.min(1,elapsed/rules.pressEnd):0}
+      <Cooktop phase={phase} turnCue={cue.changed?cue.stage:null} spoonTurns={cue.within*cue.direction} direction={cue.direction} exposed={game.exposed} contact={contact} pressure={held?Math.min(1,elapsed/rules.pressEnd):0}
         drag={drag} orbit={orbit} source={source} target={target}/>
       {notice&&<span className="signal" role="status">{notice}</span>}
       {phase==='serve'&&<span className="signal stars">{'★'.repeat(game.stars)}{'☆'.repeat(3-game.stars)}</span>}

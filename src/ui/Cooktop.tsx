@@ -2,12 +2,12 @@ import type { CSSProperties, RefObject } from 'react'
 import type { GameState, Phase } from '../game/game'
 
 type Props = {
-  phase: Phase; spoonTurns: number; direction: number; exposed: GameState['exposed']; contact: GameState['exposed']; pressure: number
+  phase: Phase; turnCue: number | null; spoonTurns: number; direction: number; exposed: GameState['exposed']; contact: GameState['exposed']; pressure: number
   orbit: RefObject<HTMLSpanElement | null>; source: RefObject<HTMLSpanElement | null>
   target: RefObject<HTMLSpanElement | null>; drag: { x: number; y: number } | null
 }
 
-export function Cooktop({ phase, spoonTurns, direction, exposed, contact, pressure, orbit, source, target, drag }: Props) {
+export function Cooktop({ phase, turnCue, spoonTurns, direction, exposed, contact, pressure, orbit, source, target, drag }: Props) {
   const mixing = phase === 'knead'
   const placing = phase === 'portion'
   const cooking = phase === 'front' || phase === 'back'
@@ -22,6 +22,7 @@ export function Cooktop({ phase, spoonTurns, direction, exposed, contact, pressu
     <span className="prop-group"><i className="sugar-jar"/><i className="sugar-jar spice-jar"/></span>
     {mixing && <span className="mix-bowl" ref={orbit}>
       <i className="bowl-rim"/><i className="batter"><i className="batter-swirl"/></i>
+      {turnCue !== null && <i key={turnCue} className="turn-cue">{direction===1?'↻':'↺'}</i>}
       <i className="orbit-guide">{direction===1?'↻':'↺'}</i><i className="spoon-orbit"><i className="wood-spoon"/></i>
     </span>}
     {!mixing && !serving && <span className="hob" ref={target}>
