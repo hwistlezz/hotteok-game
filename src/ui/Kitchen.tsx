@@ -27,8 +27,8 @@ function inside(rect: DOMRect | undefined, point: Point) {
   return rect && point.x>=rect.left && point.x<=rect.right && point.y>=rect.top && point.y<=rect.bottom
 }
 
-export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled,send}:{
-  seconds:number;timeWarning:number|undefined;keyboard:boolean;buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
+export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,now,enabled,send}:{
+  remaining:number;seconds:number;timeWarning:number|undefined;keyboard:boolean;buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
 }) {
   const orbit=useRef<HTMLSpanElement>(null), source=useRef<HTMLSpanElement>(null), target=useRef<HTMLSpanElement>(null)
   const gesture=useRef<Gesture|null>(null)
@@ -50,7 +50,7 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
   const min=phase==='press'?rules.pressStart:rules.start
   const end=phase==='press'?rules.pressEnd:rules.end
   const timed=cooking||phase==='press'
-  const shortPress = phase==='press' && game.shortPress && now<game.shortPress.until ? game.shortPress : null
+  const shortPress = phase==='press' ? game.shortPress : null
   const displayedElapsed = shortPress?.duration ?? elapsed
   const progress=phase==='knead'?game.turns/12*100:timed?Math.min(100,displayedElapsed/max*100):100
   const text=timed && elapsed>=min ? elapsed>end ? phase==='press'?'시럽이 새요!':'곧 타요!' :
@@ -67,6 +67,12 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
     if(cooking){if(game.practice && elapsed<COOK_MIN)tip('조금 더 구워요');send({type:'cook'})}
     if(phase==='serve')send({type:'serve'})
     if(phase==='redo'||phase==='burnt')send({type:'discard'})
+  }
+  function stir(amount:number) {
+    if (!amount) return
+    if (amount*cue.direction<0) tip(`${turnLabel}으로 저어요`)
+    else setMessage(current => current.phase==='knead' && current.text ? {...current,text:''} : current)
+    send({type:'knead',amount})
   }
   function cancel(){
     gesture.current=null;setDrag(null)
@@ -91,7 +97,7 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
     const angle=stirringAngle(orbit.current.getBoundingClientRect(),{x:e.clientX,y:e.clientY})
     if(angle!==null&&g.angle!==null){
       const delta=Math.atan2(Math.sin(angle-g.angle),Math.cos(angle-g.angle))
-      if(Math.abs(delta)<Math.PI/2)send({type:'knead',amount:delta/(2*Math.PI)})
+      if(Math.abs(delta)<Math.PI/2)stir(delta/(2*Math.PI))
     }
     g.angle=angle
   }
@@ -117,7 +123,7 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
     <div className="station-heading">
       <h1 id="phase-title">{title}</h1>
       {!game.practice && <span className="station-clock" data-urgent={seconds<=10}
-        data-warning={Boolean(timeWarning)} aria-label="주문 남은 시간" role="timer">{seconds}초</span>}
+        data-warning={Boolean(timeWarning)} aria-label="주문 남은 시간" role="timer">남은 {remaining}장 · {seconds}초</span>}
     </div>
     {!game.practice && <span className="stir-instruction" role="status">{timeWarning && `주문 마감 ${timeWarning}초 전`}</span>}
     <p className="hint" id="phase-hint">{instruction}</p>
@@ -125,6 +131,7 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
       {cue.stage+1}번째 지시, {cue.direction===1?'시계':'반시계'} 방향
     </span>}
     <button ref={buttonRef} className={'griddle-input stage--'+phase} type="button" disabled={!enabled}
+      data-torn={game.redoReason==='early-lift'} data-discarded-burnt={game.discardedBurnt && phase==='portion'}
       data-direction={phase==='knead'?cue.direction:undefined}
       aria-label={button} aria-describedby={phase==='knead'?'phase-hint stir-instruction':'phase-hint'} onPointerDown={down} onPointerMove={move} onPointerUp={up}
       onPointerCancel={cancel} onLostPointerCapture={e=>{if(gesture.current?.id===e.pointerId)cancel()}}
@@ -132,7 +139,7 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
       onKeyDown={e=>{
         if(phase==='knead' && (e.key==='ArrowLeft' || e.key==='ArrowRight')){
           e.preventDefault()
-          if(!e.repeat)send({type:'knead',amount:e.key==='ArrowRight'?.5:-.5})
+          if(!e.repeat)stir(e.key==='ArrowRight'?.5:-.5)
           return
         }
         if(!['Enter',' '].includes(e.key))return

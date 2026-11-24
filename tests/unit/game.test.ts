@@ -83,7 +83,11 @@ describe('조리 게임', () => {
     const base = newGame(false)
     const missed = reduceGame(base, { type: 'tick', now: 18_000 })
     expect(cookingRules(missed).shift).toBe('첫 영업')
-    expect(cookingRules({ ...base, servedOrders: 1 }).shift).toBe('손님 몰림')
+    const middle = { ...base, servedOrders: 1, phase: 'back' as const, stars: 1 }
+    const rules = cookingRules(middle)
+    expect(rules.shift).toBe('손님 몰림')
+    expect(reduceGame(middle, {type:'cook', now:rules.start})).toMatchObject({phase:'serve',stars:2})
+    expect(reduceGame(middle, {type:'cook', now:rules.end+1}).phase).toBe('redo')
     const practice = { ...newGame(true), phase: 'back' as const, stars: 0 }
     expect(reduceGame(practice, { type: 'cook', now: 4_000 })).toMatchObject({ phase: 'serve', stars: 0 })
   })
