@@ -99,6 +99,21 @@ test('작은 세로 화면에서 손님 대사가 주문대 위에 들어온다'
   expect(text!.y+text!.height).toBeLessThanOrEqual(sill!.y)
 })
 
+test('짧은 주문에서는 10초에만 마감 신호가 보인다', async ({page})=>{
+  await page.clock.install()
+  await page.goto('/')
+  await page.getByLabel('닉네임').fill('시간손님')
+  await page.getByRole('button',{name:'게임 시작'}).tap()
+  await page.getByRole('button',{name:'건너뛰기'}).tap()
+  await expect(page.getByRole('button',{name:'반죽 젓기'})).toBeEnabled()
+  const timer=page.getByRole('timer')
+  await expect(timer).toHaveAttribute('data-warning','false')
+  await page.clock.fastForward(8100)
+  await expect(timer).toHaveAttribute('data-warning','true')
+  await expect(timer).toHaveAttribute('data-urgent','true')
+  await expect(page.getByText('주문 마감 10초 전')).toHaveCount(1)
+})
+
 test('실전 퇴장 확인에서 취소하면 주문을 이어가고 나가면 처음으로 돌아간다', async ({page})=>{
   await page.clock.install()
   await page.goto('/')
@@ -411,6 +426,12 @@ for (const [width,height] of [[320,568],[360,681],[375,700],[390,740],[390,844],
     await page.getByLabel('닉네임').fill('시장손님')
     await page.getByRole('button', { name: '게임 시작' }).tap()
     await page.getByRole('button', { name: '건너뛰기' }).tap()
+    const portrait = page.locator('.guest-arrival .guest')
+    const ratio = await portrait.evaluate(el => {
+      const style = getComputedStyle(el)
+      return parseFloat(style.height) / parseFloat(style.width)
+    })
+    expect(ratio).toBeCloseTo(1.09, 2)
     const stove = await page.getByRole('button', { name: '반죽 젓기' }).boundingBox()
     const order = await page.getByRole('complementary', { name: '주문대' }).boundingBox()
     expect(stove).toBeTruthy()
