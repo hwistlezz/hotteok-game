@@ -11,7 +11,8 @@
 .guest-window:before,.cooktop .stall-shade { content:''; position:absolute; z-index:3; top:-3px; left:0; width:100%; height:15px;
   background:repeating-linear-gradient(90deg,#c34e63 0 25px,#ffe9cf 25px 50px); border-bottom:3px solid #884a48; box-shadow:0 3px 0 #68463d28; }
 .guest-arrival { position:absolute; width:48%; max-width:158px; height:78%; left:1%; bottom:2px; animation:guest-enter .42s ease-out both; }
-.guest { position:absolute; bottom:0; width:100%; aspect-ratio:1 / 1.09; max-height:100%; animation:guest-breathe 2.4s ease-in-out infinite alternate; transform-origin:bottom; }
+.guest-arrival,.guest-leaving {container-type:size;}
+.guest { position:absolute; bottom:0; inset-inline:0; margin-inline:auto; width:min(100cqw,calc(100cqh / 1.09)); aspect-ratio:1 / 1.09; animation:guest-breathe 2.4s ease-in-out infinite alternate; transform-origin:bottom; }
 .guest i { display:block; position:absolute; }
 .guest-head,.guest-ear,.guest-paw { background:radial-gradient(ellipse at 35% 25%,#fff4d16b,transparent 52%),var(--fur); border:2px solid #654737; box-shadow:inset -4px -4px 4px #79553a36; }
 .guest-head { left:10%; top:20%; width:80%; height:56%; border-radius:47% 49% 44% 45%; }
@@ -129,7 +130,7 @@
 @media (max-width:740px) and (orientation:portrait) {
   .game-shell:has(.play-area) .masthead {display:none;}
   .play-area {padding-block:6px;gap:6px;}
-  .guest-window {height:76px;}
+  .guest-window {height:clamp(76px,min(22vw,16svh),118px);}
   .guest-bubble {left:37%;right:2%;top:15%;padding:3px 4px;}
   .guest-bubble small {margin-bottom:0;}
   .guest-bubble strong {line-height:1.15;}
@@ -158,3 +159,10 @@
 .turn-cue {position:absolute;right:4%;top:-14%;z-index:2;border-radius:50%;padding:0 .22em;background:#fff3cf;color:#673d23;font:bold 1.6rem/1.15 system-ui;pointer-events:none;animation:turn-cue .9s both;}
 @keyframes turn-cue {0%,75%{opacity:1}100%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.cooktop .turn-cue{animation:turn-cue .9s steps(1,end) both!important;}}
+
+.station-heading {display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.station-clock {flex:none;border-radius:6px;padding:1px 8px;background:#f6e6bc;color:#513b27;font-size:1.1rem;font-weight:850;font-variant-numeric:tabular-nums;}
+.station-clock::before {content:'남은 시간 ';font-size:.72rem;}
+.station-clock[data-warning=true] {outline:2px solid #895312;background:#ffdb86;}
+.station-clock[data-urgent=true] {color:white;background:#98364a;}
+.station-clock[data-warning=true]::before {content:'마감 임박 ';}

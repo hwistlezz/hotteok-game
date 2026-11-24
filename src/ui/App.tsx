@@ -204,6 +204,10 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
   const lastOrder = game.receipts.at(-1)
   const seconds = Math.max(0, Math.ceil((orderLimit(quantity) - (now - game.orderAt)) / 1000))
 
+  const timeWarning = [30, 10].find(mark =>
+    orderLimit(quantity) > mark * 1000 && seconds <= mark && seconds > mark - 2
+  )
+
   function send(action: InputAction) {
     if (clock.current.anchor === null || document.hidden) return
     const timestamp = readTime()
@@ -318,7 +322,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
               `${rules.label} ${quantity}장 주세요!`}/>
           <div className="ticket">
             <div className="ticket-heading"><strong>{session.practice ? '연습' : rules.label+' '+quantity+'개'}</strong>
-              {!session.practice && <span className={'timer'+(seconds<=5?' timer--urgent':'')} aria-label="주문 남은 시간">{seconds}초</span>}</div>
+              </div>
             <div className="order-slots" aria-label={`포장 ${game.placed}/${quantity}`}>
               {Array.from({length:quantity},(_,i)=><i key={i} data-filled={i<game.placed} data-active={i===game.placed}><span>{i+1}</span></i>)}
               <b>{game.placed+1}번째 장 조리 중</b></div>
@@ -340,7 +344,7 @@ function Play({ keyboard, session, best, onBest, onHome, onReplay, onPracticeExi
               '+'+won(orderQuantity(game.receipts.length-1)*UNIT_PRICE)}
           </strong>}
         </aside>
-        <Kitchen keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
+        <Kitchen seconds={seconds} timeWarning={timeWarning} keyboard={keyboard} buttonRef={cookingButton} key={game.receipts.length} game={game} now={now} enabled={ready && !paused} send={send} />
         <dialog className="pause" ref={pauseDialog} aria-labelledby="pause-title"
           onCancel={event => { event.preventDefault(); resume() }}
           onKeyDown={event => { if (event.key !== 'Tab') return

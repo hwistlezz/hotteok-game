@@ -27,8 +27,8 @@ function inside(rect: DOMRect | undefined, point: Point) {
   return rect && point.x>=rect.left && point.x<=rect.right && point.y>=rect.top && point.y<=rect.bottom
 }
 
-export function Kitchen({keyboard,buttonRef,game,now,enabled,send}:{
-  keyboard:boolean;buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
+export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled,send}:{
+  seconds:number;timeWarning:number|undefined;keyboard:boolean;buttonRef:RefObject<HTMLButtonElement|null>;game:GameState;now:number;enabled:boolean;send:(a:InputAction)=>void
 }) {
   const orbit=useRef<HTMLSpanElement>(null), source=useRef<HTMLSpanElement>(null), target=useRef<HTMLSpanElement>(null)
   const gesture=useRef<Gesture|null>(null)
@@ -101,6 +101,8 @@ export function Kitchen({keyboard,buttonRef,game,now,enabled,send}:{
     gesture.current=null;setDrag(null)
     suppressClick.current=true
     if(g.phase!==phase)return
+    // Submit on the native click so the same tap cannot activate the result screen.
+    if(phase==='serve'){suppressClick.current=false;return}
     if(phase==='portion'){
       if(inside(target.current?.getBoundingClientRect(),{x:e.clientX,y:e.clientY}))send({type:'portion'})
       else tip('불판 안에 놓아요')
@@ -112,7 +114,12 @@ export function Kitchen({keyboard,buttonRef,game,now,enabled,send}:{
     style={{'--zone-start':min/max*100+'%','--zone-width':(end-min)/max*100+'%'} as CSSProperties}>
     <ol className="process" aria-label="조리 순서">{['젓기','떼기','누르기','굽기','건네기'].map((s,i)=>
       <li key={s} aria-current={i===index?'step':undefined} data-done={i<index}>{s}</li>)}</ol>
-    <h1 id="phase-title">{title}</h1>
+    <div className="station-heading">
+      <h1 id="phase-title">{title}</h1>
+      {!game.practice && <span className="station-clock" data-urgent={seconds<=10}
+        data-warning={Boolean(timeWarning)} aria-label="주문 남은 시간" role="timer">{seconds}초</span>}
+    </div>
+    {!game.practice && <span className="stir-instruction" role="status">{timeWarning && `주문 마감 ${timeWarning}초 전`}</span>}
     <p className="hint" id="phase-hint">{instruction}</p>
     {phase==='knead'&&<span id="stir-instruction" role="status" aria-atomic="true" className="stir-instruction">
       {cue.stage+1}번째 지시, {cue.direction===1?'시계':'반시계'} 방향
