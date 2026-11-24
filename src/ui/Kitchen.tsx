@@ -101,6 +101,8 @@ export function Kitchen({seconds,timeWarning,keyboard,buttonRef,game,now,enabled
     gesture.current=null;setDrag(null)
     suppressClick.current=true
     if(g.phase!==phase)return
+    // Submit on the native click so the same tap cannot activate the result screen.
+    if(phase==='serve'){suppressClick.current=false;return}
     if(phase==='portion'){
       if(inside(target.current?.getBoundingClientRect(),{x:e.clientX,y:e.clientY}))send({type:'portion'})
       else tip('불판 안에 놓아요')
