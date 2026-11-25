@@ -82,6 +82,7 @@ export function cookTarget(orderIndex: number) {
 const shifts = [
   { label: '첫 영업', required: 2, window: 320, grace: 650, pressWindow: 180 },
   { label: '손님 몰림', required: 2, window: 220, grace: 430, pressWindow: 140 },
+  { label: '피크 준비', required: 3, window: 220, grace: 430, pressWindow: 140 },
   { label: '피크 타임', required: 3, window: 150, grace: 320, pressWindow: 100 },
 ]
 

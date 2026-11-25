@@ -11,11 +11,11 @@ const steps: Record<Phase, [title:string,hint:string,button:string,index:number]
   back:['뒷면 굽기','반대쪽도 눈금 안에 익으면 한 장을 꺼내요.','꺼내기',3],
   serve:['한 장 완성!','손님이나 봉투를 눌러 한 장을 건네요.','호떡 제출',4],
   redo:['다시 구워주세요','같은 손님에게 낼 새 반죽을 한 덩이 떼요.','다시 굽기',3],
-  burnt:['호떡이 탔어요','탄 호떡을 걷어내고 같은 주문을 계속해요.','탄 호떡 버리기',3],
+  burnt:['호떡이 탔어요','뒤집어 보니 아랫면이 탔어요. 걷어내고 다시 구워요.','탄 호떡 버리기',3],
 }
 export type InputAction = GameAction extends infer A ? A extends GameAction ? Omit<A,'now'> : never : never
 
-type Gesture = { id:number; phase:Phase; x:number; y:number; angle:number|null }
+type Gesture = { id:number; phase:Phase; x:number; y:number; angle:number|null; reverseTurns:number; cueStage:number }
 type Point = { x:number; y:number }
 
 function stirringAngle(rect: DOMRect, point: Point) {
@@ -68,9 +68,18 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
     if(phase==='serve')send({type:'serve'})
     if(phase==='redo'||phase==='burnt')send({type:'discard'})
   }
-  function stir(amount:number) {
+  function stir(amount:number, pointer?:Gesture) {
     if (!amount) return
-    if (amount*cue.direction<0) tip(`${turnLabel}으로 저어요`)
+    const directed = amount * cue.direction
+    if (pointer) {
+      if (pointer.cueStage !== cue.stage) {
+        pointer.reverseTurns = 0
+        pointer.cueStage = cue.stage
+      }
+      const previous = pointer.reverseTurns
+      pointer.reverseTurns = Math.max(0, previous - directed)
+      if (previous < 1/8 && pointer.reverseTurns >= 1/8) tip(`${turnLabel}으로 저어요`)
+    } else if (directed < 0) tip(`${turnLabel}으로 저어요`)
     else setMessage(current => current.phase==='knead' && current.text ? {...current,text:''} : current)
     send({type:'knead',amount})
   }
@@ -84,7 +93,7 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
     suppressClick.current=false
     if(phase==='portion'&&!inside(source.current?.getBoundingClientRect(),p))return
     const angle=phase==='knead'&&orbit.current?stirringAngle(orbit.current.getBoundingClientRect(),p):null
-    gesture.current={id:e.pointerId,phase,...p,angle}
+    gesture.current={id:e.pointerId,phase,...p,angle,reverseTurns:0,cueStage:cue.stage}
     e.currentTarget.setPointerCapture(e.pointerId)
     if(phase==='portion')setDrag({x:0,y:0})
     if(phase==='press')send({type:'press-start'})
@@ -97,8 +106,10 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
     const angle=stirringAngle(orbit.current.getBoundingClientRect(),{x:e.clientX,y:e.clientY})
     if(angle!==null&&g.angle!==null){
       const delta=Math.atan2(Math.sin(angle-g.angle),Math.cos(angle-g.angle))
-      if(Math.abs(delta)<Math.PI/2)stir(delta/(2*Math.PI))
+      if(Math.abs(delta)<Math.PI/2)stir(delta/(2*Math.PI),g)
+      else g.reverseTurns=0
     }
+    if(angle===null)g.reverseTurns=0
     g.angle=angle
   }
   function up(e:PointerEvent<HTMLButtonElement>){
