@@ -64,7 +64,24 @@ test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 다음 시
     if(degrees===8.5) await expect(bowl.locator('.signal')).toHaveCount(0)
   }
   await expect(bowl.locator('.signal')).toContainText('방향으로 저어요')
+  for(let i=1;i<=16;i++){
+    const {x,y}=point(-36-i*30)
+    await page.mouse.move(x,y)
+    await page.clock.fastForward(250)
+    await expect(bowl.locator('.signal')).toContainText('방향으로 저어요')
+  }
+  for(const degrees of [-486,-456]){
+    const {x,y}=point(degrees)
+    await page.mouse.move(x,y)
+  }
+  await expect(bowl.locator('.signal')).toHaveCount(0)
+  for(const degrees of [-486,-516]){
+    const {x,y}=point(degrees)
+    await page.mouse.move(x,y)
+  }
+  await expect(bowl.locator('.signal')).toBeVisible()
   await page.mouse.up()
+  await expect(bowl.locator('.signal')).toHaveCount(0)
   await page.clock.fastForward(1100)
   await bowl.press(clockwise ? 'ArrowLeft' : 'ArrowRight')
   await expect(page.locator('.signal')).toContainText(clockwise ? '↻ 시계' : '↺ 반시계')
@@ -209,6 +226,9 @@ test('뒷면이 익는 동안 윗면이 유지되고 탄 상태에서는 탄 면
     const art=getComputedStyle(el,'::before')
     return [getComputedStyle(el).opacity,art.transform,art.backgroundPosition,art.filter]
   })
+  await page.setViewportSize({width:320,height:640})
+  const top=()=>page.locator('.griddle-input').evaluate(el=>el.getBoundingClientRect().top+scrollY)
+  const cookingTop=await top()
   const firstSide=await surface()
   await page.clock.runFor(1_000)
   expect(await surface()).toEqual(firstSide)
@@ -216,6 +236,7 @@ test('뒷면이 익는 동안 윗면이 유지되고 탄 상태에서는 탄 면
   await expect(page.getByRole('button',{name:'탄 호떡 버리기'})).toBeVisible()
   await page.clock.runFor(500)
   await expect(page.locator('.cake-char')).toHaveCSS('opacity','1')
+  expect(await top()).toBe(cookingTop)
 })
 
 test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 검증한다', async ({ page, request }) => {
@@ -475,7 +496,11 @@ for (const [width,height] of [[320,568],[320,640],[360,681],[375,700],[390,740],
       await page.clock.fastForward(2050)
       expect((await page.locator('.griddle-input').boundingBox())!.y).toBe(top)
     }
-    await prepareWithKeyboard(page)
+    await stirWithKeyboard(page)
+    const griddleTop=()=>page.locator('.griddle-input').evaluate(el=>el.getBoundingClientRect().top+scrollY)
+    const portionTop=await griddleTop()
+    await page.getByRole('button',{name:'반죽 옮기기'}).press('Enter')
+    if(width===320) expect(await griddleTop()).toBe(portionTop)
     async function expectGaugeOnScreen(name: string) {
       await page.evaluate(() => window.scrollTo(0, 0))
       const gauge = page.getByRole('progressbar', { name })
@@ -488,6 +513,10 @@ for (const [width,height] of [[320,568],[320,640],[360,681],[375,700],[390,740],
     await page.getByRole('button', { name: '뒤집기' }).tap()
     await expect(page.getByRole('heading', { name: '뒷면 굽기' })).toBeVisible()
     await expectGaugeOnScreen('굽기 정도')
+    if(width===320 && height===640){
+      const beforeBurn=await griddleTop()
+      expect(beforeBurn).toBe(portionTop)
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
   })
 }
