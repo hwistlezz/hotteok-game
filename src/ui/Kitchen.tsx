@@ -16,6 +16,7 @@ const steps: Record<Phase, [title:string,hint:string,button:string,index:number]
 export type InputAction = GameAction extends infer A ? A extends GameAction ? Omit<A,'now'> : never : never
 
 type Gesture = { id:number; phase:Phase; x:number; y:number; angle:number|null; reverseTurns:number; cueStage:number }
+const directionThreshold = 1/8
 type Point = { x:number; y:number }
 
 function stirringAngle(rect: DOMRect, point: Point) {
@@ -34,6 +35,7 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
   const gesture=useRef<Gesture|null>(null)
   const suppressClick=useRef(false)
   const [drag,setDrag]=useState<Point|null>(null)
+  const [reverseStage,setReverseStage]=useState<number|null>(null)
   const [message,setMessage]=useState({phase:game.phase,text:'',until:0})
   const {phase}=game
   const [title,hint,button,index]=steps[phase]
@@ -55,11 +57,12 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
   const progress=phase==='knead'?game.turns/12*100:timed?Math.min(100,displayedElapsed/max*100):100
   const text=timed && elapsed>=min ? elapsed>end ? phase==='press'?'시럽이 새요!':'곧 타요!' :
     phase==='press'?'지금 손 떼기!':phase==='front'?'뒤집을 때!':'꺼낼 때!' : ''
-  const notice=(shortPress?'조금 더 눌러요':'') || text || (now<message.until && message.phase===phase ? message.text:'')
+  const reverseHint = phase==='knead' && reverseStage===cue.stage ? `${turnLabel}으로 저어요` : ''
+  const notice=reverseHint || (shortPress?'조금 더 눌러요':'') || text || (now<message.until && message.phase===phase ? message.text:'')
   const contact=phase==='burnt'?{toast:1,char:1}:cooking?contactSurface(elapsed,rules):game.exposed
   const label=phase==='knead'?'젓기':phase==='press'?'누르는 힘':cooking?'굽기 정도':''
   function tip(text:string) {setMessage({phase,text,until:now+950})}
-  useEffect(()=>{ if(!enabled){gesture.current=null;setDrag(null)} },[enabled])
+  useEffect(()=>{ if(!enabled){gesture.current=null;setDrag(null);setReverseStage(null)} },[enabled])
 
   function activate(fromKeyboard:boolean) {
     if(phase==='knead'){ tip(fromKeyboard?'← → 키로 저어요':'그릇 가장자리를 따라 원을 그려요');return }
@@ -73,18 +76,24 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
     const directed = amount * cue.direction
     if (pointer) {
       if (pointer.cueStage !== cue.stage) {
+        setReverseStage(null)
         pointer.reverseTurns = 0
         pointer.cueStage = cue.stage
       }
-      const previous = pointer.reverseTurns
-      pointer.reverseTurns = Math.max(0, previous - directed)
-      if (previous < 1/8 && pointer.reverseTurns >= 1/8) tip(`${turnLabel}으로 저어요`)
-    } else if (directed < 0) tip(`${turnLabel}으로 저어요`)
-    else setMessage(current => current.phase==='knead' && current.text ? {...current,text:''} : current)
+      // Cap the distance so correcting a long reverse stroke takes only an eighth turn.
+      pointer.reverseTurns = Math.min(directionThreshold, Math.max(0, pointer.reverseTurns - directed))
+      if (pointer.reverseTurns === directionThreshold) setReverseStage(cue.stage)
+      else if (pointer.reverseTurns === 0) setReverseStage(null)
+    } else {
+      setReverseStage(null)
+      if (gesture.current) gesture.current.reverseTurns=0
+      if (directed < 0) tip(`${turnLabel}으로 저어요`)
+      else setMessage(current => current.phase==='knead' && current.text ? {...current,text:''} : current)
+    }
     send({type:'knead',amount})
   }
   function cancel(){
-    gesture.current=null;setDrag(null)
+    gesture.current=null;setDrag(null);setReverseStage(null)
     if(phase==='press')send({type:'cancel-press'})
   }
   function down(e:PointerEvent<HTMLButtonElement>){
@@ -107,15 +116,14 @@ export function Kitchen({remaining,seconds,timeWarning,keyboard,buttonRef,game,n
     if(angle!==null&&g.angle!==null){
       const delta=Math.atan2(Math.sin(angle-g.angle),Math.cos(angle-g.angle))
       if(Math.abs(delta)<Math.PI/2)stir(delta/(2*Math.PI),g)
-      else g.reverseTurns=0
-    }
-    if(angle===null)g.reverseTurns=0
+      else { g.reverseTurns=0;setReverseStage(null) }
+    } else { g.reverseTurns=0;setReverseStage(null) }
     g.angle=angle
   }
   function up(e:PointerEvent<HTMLButtonElement>){
     const g=gesture.current
     if(!g||g.id!==e.pointerId)return
-    gesture.current=null;setDrag(null)
+    gesture.current=null;setDrag(null);setReverseStage(null)
     suppressClick.current=true
     if(g.phase!==phase)return
     // Submit on the native click so the same tap cannot activate the result screen.

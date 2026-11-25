@@ -169,7 +169,8 @@
 .station-clock[data-warning=true] {outline:2px solid #895312;background:#ffdb86;}
 .station-clock[data-urgent=true] {color:white;background:#98364a;}
 @media(max-width:380px){
-  .station-heading h1 {font-size:1.35rem;word-break:keep-all;}
+  .station .hint {line-height:1.25rem;min-block-size:2.5rem;}
+  .station-heading h1 {font-size:1.35rem;line-height:1.25;word-break:keep-all;}
   .station-clock {font-size:.94rem;padding-inline:5px;white-space:nowrap;}
 }
 @media(max-width:340px) and (orientation:portrait){
