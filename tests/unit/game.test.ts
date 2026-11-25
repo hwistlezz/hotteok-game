@@ -47,7 +47,7 @@ describe('조리 게임', () => {
     expect(reduceGame(torn,{type:'discard',now:800})).toMatchObject({phase:'portion',redoReason:null,placed:1,hearts:3})
   })
   it('피크 타임에서 눈금을 1ms 놓친 호떡은 납품할 수 없고 예약 반죽으로 다시 굽는다', () => {
-    const back: GameState = { ...newGame(false), servedOrders: 2, phase: 'back', stars: 2, prepped: 2 }
+    const back: GameState = { ...newGame(false), servedOrders: 3, phase: 'back', stars: 2, prepped: 2 }
     const { start, end, burn, required } = cookingRules(back)
     expect([end - start, required]).toEqual([150, 3])
     for (const now of [start, end]) {
@@ -86,6 +86,9 @@ describe('조리 게임', () => {
     const middle = { ...base, servedOrders: 1, phase: 'back' as const, stars: 1 }
     const rules = cookingRules(middle)
     expect(rules.shift).toBe('손님 몰림')
+    const transition = cookingRules({ ...middle, servedOrders: 2 })
+    expect([transition.required, transition.end-transition.start, transition.pressEnd-transition.pressStart])
+      .toEqual([3, rules.end-rules.start, rules.pressEnd-rules.pressStart])
     expect(reduceGame(middle, {type:'cook', now:rules.start})).toMatchObject({phase:'serve',stars:2})
     expect(reduceGame(middle, {type:'cook', now:rules.end+1}).phase).toBe('redo')
     const practice = { ...newGame(true), phase: 'back' as const, stars: 0 }

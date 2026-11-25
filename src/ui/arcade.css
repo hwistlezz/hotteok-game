@@ -168,4 +168,16 @@
 @media(prefers-reduced-motion:reduce){[data-discarded-burnt=true] .hob:after{animation:none;inset:0 auto auto 0;width:24%;height:25%;}}
 .station-clock[data-warning=true] {outline:2px solid #895312;background:#ffdb86;}
 .station-clock[data-urgent=true] {color:white;background:#98364a;}
-.station-clock[data-warning=true]::before {content:'마감 임박 ';font-size:.72rem;}
+@media(max-width:380px){
+  .station-heading h1 {font-size:1.35rem;word-break:keep-all;}
+  .station-clock {font-size:.94rem;padding-inline:5px;white-space:nowrap;}
+}
+@media(max-width:340px) and (orientation:portrait){
+  .cooktop {height:clamp(116px,min(100svh - 468px,73vw),338px);}
+}
+.cooktop-burnt .cake-char {opacity:1;}
+@media(prefers-reduced-motion:no-preference){
+  .cooktop-burnt .cake-flight {animation:toss .45s ease-out both;}
+  .cooktop-burnt .cake-char {animation:reveal-burn .45s steps(1,end) both;}
+  @keyframes reveal-burn {0%{opacity:var(--char);}45%,100%{opacity:1;}}
+}

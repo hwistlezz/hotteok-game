@@ -50,6 +50,22 @@ test('입력 안내를 바꾸고 너무 짧은 누르기의 위치를 다음 시
   const bowl = page.getByRole('button',{name:'반죽 젓기'})
   await expect(bowl).toBeEnabled()
   const clockwise = await bowl.getAttribute('data-direction') === '1'
+  const box = (await bowl.locator('.mix-bowl').boundingBox())!
+  const point = (degrees:number) => {
+    const angle = degrees * Math.PI/180 * (clockwise ? 1 : -1)
+    return {x:box.x+box.width*(.5+.38*Math.cos(angle)), y:box.y+box.height*(.5+.38*Math.sin(angle))}
+  }
+  const start = point(0)
+  await page.mouse.move(start.x,start.y)
+  await page.mouse.down()
+  for(const degrees of [10,8.5,12,0,-12,-24,-36]){
+    const {x,y} = point(degrees)
+    await page.mouse.move(x,y)
+    if(degrees===8.5) await expect(bowl.locator('.signal')).toHaveCount(0)
+  }
+  await expect(bowl.locator('.signal')).toContainText('방향으로 저어요')
+  await page.mouse.up()
+  await page.clock.fastForward(1100)
   await bowl.press(clockwise ? 'ArrowLeft' : 'ArrowRight')
   await expect(page.locator('.signal')).toContainText(clockwise ? '↻ 시계' : '↺ 반시계')
   await expect(hint).toContainText('← 반시계')
@@ -180,7 +196,7 @@ test('모바일에서 연습을 완료하고 일시정지 뒤 재개한다', asy
   await expect(page.getByRole('heading', { name: '호떡 만들기' })).toBeVisible()
 })
 
-test('뒷면이 타도 위에 보이는 첫 면의 무늬와 색은 유지된다', async ({page}) => {
+test('뒷면이 익는 동안 윗면이 유지되고 탄 상태에서는 탄 면을 보여준다', async ({page}) => {
   await page.clock.install()
   await page.goto('/')
   await page.getByRole('button',{name:'조작 방법'}).tap()
@@ -194,9 +210,12 @@ test('뒷면이 타도 위에 보이는 첫 면의 무늬와 색은 유지된다
     return [getComputedStyle(el).opacity,art.transform,art.backgroundPosition,art.filter]
   })
   const firstSide=await surface()
+  await page.clock.runFor(1_000)
+  expect(await surface()).toEqual(firstSide)
   await page.clock.fastForward(5_100)
   await expect(page.getByRole('button',{name:'탄 호떡 버리기'})).toBeVisible()
-  expect(await surface()).toEqual(firstSide)
+  await page.clock.runFor(500)
+  await expect(page.locator('.cake-char')).toHaveCSS('opacity','1')
 })
 
 test('정상 주문, 게임 오버, 등록 실패 복구 및 동시 제출을 검증한다', async ({ page, request }) => {
@@ -425,7 +444,7 @@ test('모바일 브라우저 높이가 경계를 넘어도 조리대가 갑자�
   expect(Math.abs(after!.height - before!.height)).toBeLessThanOrEqual(1)
 })
 
-for (const [width,height] of [[320,568],[360,681],[375,700],[390,740],[390,844],[844,390],[1280,800]]) {
+for (const [width,height] of [[320,568],[320,640],[360,681],[375,700],[390,740],[390,844],[844,390],[1280,800]]) {
   test(`주문과 조리대가 화면 안에 배치된다 (${width}×${height})`, async ({ page }) => {
     await page.clock.install()
     await page.setViewportSize({ width,height })
@@ -447,6 +466,15 @@ for (const [width,height] of [[320,568],[360,681],[375,700],[390,740],[390,844],
     expect(stove!.y+stove!.height).toBeLessThanOrEqual(height)
     if (width>=800) expect(order!.x+order!.width).toBeLessThan(stove!.x)
     else expect(order!.y+order!.height).toBeLessThan(stove!.y)
+    if(width===320 || width===375){
+      await expect(page.getByRole('timer')).toHaveAttribute('data-warning','false')
+      const top = (await page.locator('.griddle-input').boundingBox())!.y
+      await page.clock.fastForward(8100)
+      await expect(page.getByRole('timer')).toHaveAttribute('data-warning','true')
+      expect((await page.locator('.griddle-input').boundingBox())!.y).toBe(top)
+      await page.clock.fastForward(2050)
+      expect((await page.locator('.griddle-input').boundingBox())!.y).toBe(top)
+    }
     await prepareWithKeyboard(page)
     async function expectGaugeOnScreen(name: string) {
       await page.evaluate(() => window.scrollTo(0, 0))
